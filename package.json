@@ -1,17 +1,22 @@
 {
-  "name": "n8n-nodes-contentstudio",
-  "version": "0.1.0",
+  "name": "@d4interactive/n8n-nodes-contentstudio",
+  "version": "1.0.0",
   "description": "n8n node for ContentStudio API (X-API-Key)",
   "keywords": ["n8n", "workflow", "contentstudio", "social", "api"],
   "license": "MIT",
-  "author": "ContentStudio Team",
-  "homepage": "https://github.com/contentstudio/n8n-nodes-contentstudio#readme",
+  "author": "D4 Interactive",
+  "homepage": "https://github.com/d4interactive/n8n-nodes#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/contentstudio/n8n-nodes-contentstudio.git"
+    "url": "git+https://github.com/d4interactive/n8n-nodes.git"
   },
   "bugs": {
-    "url": "https://github.com/contentstudio/n8n-nodes-contentstudio/issues"
+    "url": "https://github.com/d4interactive/n8n-nodes/issues"
+  },
+  "private": false,
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://registry.npmjs.org/"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
