@@ -1,0 +1,48 @@
+{
+  "name": "n8n-nodes-contentstudio",
+  "version": "0.1.0",
+  "description": "n8n node for ContentStudio API (X-API-Key)",
+  "keywords": ["n8n", "workflow", "contentstudio", "social", "api"],
+  "license": "MIT",
+  "author": "ContentStudio Team",
+  "homepage": "https://github.com/contentstudio/n8n-nodes-contentstudio#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/contentstudio/n8n-nodes-contentstudio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/contentstudio/n8n-nodes-contentstudio/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "icons"
+  ],
+  "n8n": {
+    "nodes": [
+      "dist/nodes/ContentStudio/ContentStudio.node.js"
+    ],
+    "credentials": [
+      "dist/credentials/ContentStudioApi.credentials.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json -w",
+    "prepublishOnly": "npm run build",
+    "lint": "echo 'Linting not configured'",
+    "test": "echo 'Tests not configured'"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.34",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0",
+    "n8n-core": ">=1.0.0"
+  }
+}
