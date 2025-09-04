@@ -2,6 +2,7 @@ import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescrip
 import { NodeConnectionType } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
+import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
 export class ContentStudio implements INodeType {
   description: INodeTypeDescription = {
@@ -11,6 +12,7 @@ export class ContentStudio implements INodeType {
     version: [4, 5],
     description: 'Integrate with ContentStudio API',
     defaults: { name: 'ContentStudio' },
+    iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
     inputs: [NodeConnectionType.Main],
     outputs: [NodeConnectionType.Main],
     credentials: [{ name: 'contentStudioApi', required: true }],
@@ -59,7 +61,7 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         displayOptions: { show: { resource: ['socialAccount'] } },
         options: [
-          { name: 'List', value: 'list', action: 'List social accounts' },
+          { name: 'List', value: 'list', action: 'List Social Accounts' },
         ],
         default: 'list',
       },
@@ -70,9 +72,9 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         displayOptions: { show: { resource: ['post'] } },
         options: [
-          { name: 'List', value: 'list', action: 'List posts' },
-          { name: 'Create', value: 'create', action: 'Create post' },
-          { name: 'Delete', value: 'delete', action: 'Delete post' },
+          { name: 'List', value: 'list', action: 'List Posts' },
+          { name: 'Create', value: 'create', action: 'Create Social Post' },
+          { name: 'Delete', value: 'delete', action: 'Delete Post' },
         ],
         default: 'list',
       },
@@ -280,7 +282,7 @@ export class ContentStudio implements INodeType {
       const operation = this.getNodeParameter('operation', i) as string;
 
       const credentials = await this.getCredentials('contentStudioApi');
-      const baseRoot = normalizeBase(credentials.baseUrl as string);
+      const baseRoot = normalizeBase(BASE_URL);
       const apiKey = credentials.apiKey as string;
 
       // Base request options
