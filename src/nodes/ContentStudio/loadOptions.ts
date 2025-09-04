@@ -1,10 +1,11 @@
 import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { normalizeBase } from './utils';
+import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
 export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const credentials = await this.getCredentials('contentStudioApi');
-    const baseRoot = normalizeBase(credentials.baseUrl as string);
+    const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const options: any = {
       method: 'GET',
@@ -34,7 +35,7 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
 export async function getPosts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const credentials = await this.getCredentials('contentStudioApi');
-    const baseRoot = normalizeBase(credentials.baseUrl as string);
+    const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
@@ -68,7 +69,7 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
 export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const credentials = await this.getCredentials('contentStudioApi');
-    const baseRoot = normalizeBase(credentials.baseUrl as string);
+    const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];

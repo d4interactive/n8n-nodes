@@ -57,7 +57,7 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         displayOptions: { show: { resource: ['socialAccount'] } },
         options: [
-          { name: 'List', value: 'list', action: 'List social accounts' },
+          { name: 'List', value: 'list', action: 'List Social Accounts' },
         ],
         default: 'list',
       },
@@ -68,9 +68,9 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         displayOptions: { show: { resource: ['post'] } },
         options: [
-          { name: 'List', value: 'list', action: 'List posts' },
-          { name: 'Create', value: 'create', action: 'Create post' },
-          { name: 'Delete', value: 'delete', action: 'Delete post' },
+          { name: 'List', value: 'list', action: 'List Posts' },
+          { name: 'Create', value: 'create', action: 'Create Social Post' },
+          { name: 'Delete', value: 'delete', action: 'Delete Post' },
         ],
         default: 'list',
       },
