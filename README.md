@@ -6,18 +6,16 @@ An n8n community node for integrating with the ContentStudio API. This node allo
 
 ## Installation
 
-### Community Nodes (Recommended)
-
-1. Go to **Settings > Community Nodes** in your n8n instance
-2. Select **Install a community node**
-3. Enter `n8n-nodes-contentstudio`
+### In n8n (Recommended)
+1. Go to **Settings** > **Community Nodes**
+2. Click **Install**
+3. Enter package name: `contentstudio-n8n-nodes`
 4. Click **Install**
 
-### Manual Installation
-
-1. Navigate to your n8n installation directory
-2. Run: `npm install n8n-nodes-contentstudio`
-3. Restart n8n
+### Via npm
+```bash
+npm install contentstudio-n8n-nodes
+```
 
 ## Prerequisites
 
