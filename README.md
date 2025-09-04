@@ -1,20 +1,18 @@
-# n8n-nodes-contentstudio
+# n8n ContentStudio Nodes
 
-An n8n community node for integrating with the ContentStudio API. This node allows you to automate content workflows by creating, listing, and deleting posts across multiple social media platforms through ContentStudio.
-
-![n8n.io - Workflow Automation](https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png)
+This package provides n8n community nodes for integrating with ContentStudio API, enabling workflow automation for social media management.
 
 ## Installation
 
 ### In n8n (Recommended)
 1. Go to **Settings** > **Community Nodes**
 2. Click **Install**
-3. Enter package name: `contentstudio-n8n-nodes`
+3. Enter package name: `n8n-nodes-contentstudio-d4interactive`
 4. Click **Install**
 
 ### Via npm
 ```bash
-npm install contentstudio-n8n-nodes
+npm install n8n-nodes-contentstudio-d4interactive
 ```
 
 ## Prerequisites
