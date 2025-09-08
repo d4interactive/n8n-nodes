@@ -7,12 +7,12 @@ This package provides n8n community nodes for integrating with ContentStudio API
 ### In n8n (Recommended)
 1. Go to **Settings** > **Community Nodes**
 2. Click **Install**
-3. Enter package name: `n8n-nodes-contentstudio-d4interactive`
+3. Enter package name: `n8n-nodes-contentstudio`
 4. Click **Install**
 
 ### Via npm
 ```bash
-npm install n8n-nodes-contentstudio-d4interactive
+npm install n8n-nodes-contentstudio
 ```
 
 ## Prerequisites
@@ -26,7 +26,7 @@ npm install n8n-nodes-contentstudio-d4interactive
 This node requires ContentStudio API credentials:
 
 1. **API Key**: Your ContentStudio API key
-2. **Base URL**: Your ContentStudio API base URL (e.g., `https://api.contentstudio.io/api`)
+2. **Base URL**: Fixed to `https://api-prod.contentstudio.io/` (no input required)
 
 ## Operations
 
@@ -66,7 +66,6 @@ This node requires ContentStudio API credentials:
 
 This node works with ContentStudio API v1 and supports:
 - Multiple API response formats
-- Various entity identifier fields (`id`, `_id`, `uuid`)
 - Robust error handling and fallbacks
 
 ## Example Workflow
@@ -79,7 +78,7 @@ This node works with ContentStudio API v1 and supports:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/contentstudio/n8n-nodes-contentstudio/issues)
+- **Issues**: [GitHub Issues](https://github.com/d4interactive/n8n-nodes/issues)
 - **Documentation**: [ContentStudio API Docs](https://docs.contentstudio.io/)
 - **n8n Community**: [n8n Community Forum](https://community.n8n.io/)
 
