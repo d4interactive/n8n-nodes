@@ -1,8 +1,11 @@
-# Compiled output
-dist/
+# Compiled output (keep dist/ for n8n community nodes)
+# dist/
 *.js
 *.js.map
 *.d.ts
+
+# Keep compiled dist folder for n8n
+!dist/
 
 # Dependencies
 node_modules/

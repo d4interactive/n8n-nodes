@@ -6,7 +6,7 @@ export const BASE_URL = 'https://api-prod.contentstudio.io/';
 export class ContentStudioApi implements ICredentialType {
   name = 'contentStudioApi';
   displayName = DISPLAY_NAME;
-  documentationUrl = 'https://qa-api.contentstudio.io/api-docs';
+  documentationUrl = 'https://api.contentstudio.io/guide';
 
   properties: INodeProperties[] = [
     {
