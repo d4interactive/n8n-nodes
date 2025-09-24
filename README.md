@@ -2,6 +2,8 @@
 
 This package provides n8n community nodes for integrating with ContentStudio API, enabling workflow automation for social media management.
 
+[![npm version](https://badge.fury.io/js/n8n-nodes-contentstudio.svg)](https://badge.fury.io/js/n8n-nodes-contentstudio)
+
 ## Installation
 
 ### In n8n (Recommended)

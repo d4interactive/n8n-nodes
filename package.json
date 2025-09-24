@@ -1,7 +1,8 @@
 {
   "name": "n8n-nodes-contentstudio",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "n8n node for ContentStudio API (X-API-Key)",
+  "readme": "README.md",
   "keywords": ["n8n-community-node-package", "n8n", "workflow", "contentstudio", "social", "api", "automation"],
   "license": "MIT",
   "author": "D4 Interactive",
