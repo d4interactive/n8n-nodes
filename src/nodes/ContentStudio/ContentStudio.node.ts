@@ -3,18 +3,6 @@ import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts } from '.
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
-function isContentStudioDebugEnabled(): boolean {
-  const v = process.env.CONTENTSTUDIO_DEBUG;
-  return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true');
-}
-
-function redactApiKey(key: string): string {
-  const k = String(key || '');
-  if (!k) return '';
-  if (k.length <= 8) return '***';
-  return `${k.slice(0, 3)}***${k.slice(-5)}`;
-}
-
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value);
@@ -43,10 +31,6 @@ function extractHttpErrorDetails(error: any): { statusCode: string | number; api
   const body = error?.response?.body ?? error?.response?.data;
   const apiMessage = extractApiErrorMessage(body) || error?.message || String(error);
   return { statusCode, apiMessage };
-}
-
-if (isContentStudioDebugEnabled()) {
-  console.log('[ContentStudio][DEBUG] module loaded: ContentStudio.node');
 }
 
 export class ContentStudio implements INodeType {
@@ -551,48 +535,9 @@ export class ContentStudio implements INodeType {
       }
 
       try {
-        if (isContentStudioDebugEnabled()) {
-          const headersForLog = {
-            ...(options.headers || {}),
-            'X-API-Key': redactApiKey(apiKey),
-          };
-          console.log(
-            '[ContentStudio][DEBUG] request',
-            safeStringify({
-              resource,
-              operation,
-              baseRoot,
-              apiKeyLength: String(apiKey || '').length,
-              method: options.method,
-              url: options.url,
-              qs: options.qs,
-              timeout: options.timeout,
-              headers: headersForLog,
-            }),
-          );
-        }
         const response = await this.helpers.httpRequest(options);
-        if (isContentStudioDebugEnabled()) {
-          console.log('[ContentStudio][DEBUG] response', safeStringify({ resource, operation, url: options.url, ok: true }));
-        }
         returnData.push({ json: response });
       } catch (error: any) {
-        if (isContentStudioDebugEnabled()) {
-          const statusCode = error?.statusCode || error?.response?.statusCode || error?.response?.status || 'unknown';
-          const body = error?.response?.body ?? error?.response?.data;
-          console.log(
-            '[ContentStudio][DEBUG] error',
-            safeStringify({
-              resource,
-              operation,
-              url: options.url,
-              method: options.method,
-              statusCode,
-              errorMessage: error?.message,
-              responseBody: body,
-            }),
-          );
-        }
         const { statusCode, apiMessage } = extractHttpErrorDetails(error);
         throw new Error(`ContentStudio API Error (${statusCode}): ${apiMessage}`);
       }

@@ -4,18 +4,6 @@ exports.ContentStudio = void 0;
 const loadOptions_1 = require("./loadOptions");
 const utils_1 = require("./utils");
 const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
-function isContentStudioDebugEnabled() {
-    const v = process.env.CONTENTSTUDIO_DEBUG;
-    return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true');
-}
-function redactApiKey(key) {
-    const k = String(key || '');
-    if (!k)
-        return '';
-    if (k.length <= 8)
-        return '***';
-    return `${k.slice(0, 3)}***${k.slice(-5)}`;
-}
 function safeStringify(value) {
     try {
         return JSON.stringify(value);
@@ -45,9 +33,6 @@ function extractHttpErrorDetails(error) {
     const body = (_e = (_d = error === null || error === void 0 ? void 0 : error.response) === null || _d === void 0 ? void 0 : _d.body) !== null && _e !== void 0 ? _e : (_f = error === null || error === void 0 ? void 0 : error.response) === null || _f === void 0 ? void 0 : _f.data;
     const apiMessage = extractApiErrorMessage(body) || (error === null || error === void 0 ? void 0 : error.message) || String(error);
     return { statusCode, apiMessage };
-}
-if (isContentStudioDebugEnabled()) {
-    console.log('[ContentStudio][DEBUG] module loaded: ContentStudio.node');
 }
 class ContentStudio {
     constructor() {
@@ -366,7 +351,6 @@ class ContentStudio {
         };
     }
     async execute() {
-        var _a, _b, _c, _d, _e;
         const items = this.getInputData();
         const returnData = [];
         for (let i = 0; i < items.length; i++) {
@@ -528,43 +512,10 @@ class ContentStudio {
                 options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
             }
             try {
-                if (isContentStudioDebugEnabled()) {
-                    const headersForLog = {
-                        ...(options.headers || {}),
-                        'X-API-Key': redactApiKey(apiKey),
-                    };
-                    console.log('[ContentStudio][DEBUG] request', safeStringify({
-                        resource,
-                        operation,
-                        baseRoot,
-                        apiKeyLength: String(apiKey || '').length,
-                        method: options.method,
-                        url: options.url,
-                        qs: options.qs,
-                        timeout: options.timeout,
-                        headers: headersForLog,
-                    }));
-                }
                 const response = await this.helpers.httpRequest(options);
-                if (isContentStudioDebugEnabled()) {
-                    console.log('[ContentStudio][DEBUG] response', safeStringify({ resource, operation, url: options.url, ok: true }));
-                }
                 returnData.push({ json: response });
             }
             catch (error) {
-                if (isContentStudioDebugEnabled()) {
-                    const statusCode = (error === null || error === void 0 ? void 0 : error.statusCode) || ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.statusCode) || ((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status) || 'unknown';
-                    const body = (_d = (_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.body) !== null && _d !== void 0 ? _d : (_e = error === null || error === void 0 ? void 0 : error.response) === null || _e === void 0 ? void 0 : _e.data;
-                    console.log('[ContentStudio][DEBUG] error', safeStringify({
-                        resource,
-                        operation,
-                        url: options.url,
-                        method: options.method,
-                        statusCode,
-                        errorMessage: error === null || error === void 0 ? void 0 : error.message,
-                        responseBody: body,
-                    }));
-                }
                 const { statusCode, apiMessage } = extractHttpErrorDetails(error);
                 throw new Error(`ContentStudio API Error (${statusCode}): ${apiMessage}`);
             }

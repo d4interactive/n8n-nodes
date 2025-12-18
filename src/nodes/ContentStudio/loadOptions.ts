@@ -2,18 +2,6 @@ import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { normalizeBase } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
-function isContentStudioDebugEnabled(): boolean {
-  const v = process.env.CONTENTSTUDIO_DEBUG;
-  return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true');
-}
-
-function redactApiKey(key: string): string {
-  const k = String(key || '');
-  if (!k) return '';
-  if (k.length <= 8) return '***';
-  return `${k.slice(0, 3)}***${k.slice(-5)}`;
-}
-
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value);
@@ -119,28 +107,8 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
       timeout: 60000,
     };
 
-    if (isContentStudioDebugEnabled()) {
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getFirstCommentAccounts request',
-        safeStringify({
-          url: optionsBase.url,
-          method: optionsBase.method,
-          qs: qsWithIds,
-          selectedIdsCount: selectedIds.length,
-          apiKeyLength: String(apiKey || '').length,
-          headers: { ...(optionsBase.headers || {}), 'X-API-Key': redactApiKey(apiKey) },
-        }),
-      );
-    }
-
     let { statusCode, body } = await httpRequestNormalized(this, { ...optionsBase, qs: qsWithIds });
     if (statusCode === 400 || statusCode === 404 || statusCode === 422) {
-      if (isContentStudioDebugEnabled()) {
-        console.log(
-          '[ContentStudio][DEBUG] loadOptions.getFirstCommentAccounts retryWithoutIds',
-          safeStringify({ statusCode }),
-        );
-      }
       ({ statusCode, body } = await httpRequestNormalized(this, { ...optionsBase, qs: baseQsAll }));
     }
 
@@ -158,26 +126,8 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
 
-    if (isContentStudioDebugEnabled()) {
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getFirstCommentAccounts response',
-        safeStringify({ ok: true, count: out.length, selectedIdsCount: selectedIds.length }),
-      );
-    }
-
     return out;
   } catch (error) {
-    if (isContentStudioDebugEnabled()) {
-      const e: any = error;
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getFirstCommentAccounts error',
-        safeStringify({
-          statusCode: e?.statusCode || e?.response?.statusCode || e?.response?.status || 'unknown',
-          errorMessage: e?.message,
-          responseBody: e?.response?.body ?? e?.response?.data,
-        }),
-      );
-    }
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     throw new Error(`Failed to load First Comment Accounts: (${statusCode}) ${apiMessage}`);
   }
@@ -199,29 +149,11 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
       timeout: 60000,
     };
 
-    if (isContentStudioDebugEnabled()) {
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getWorkspaces request',
-        safeStringify({
-          url: options.url,
-          method: options.method,
-          qs: options.qs,
-          apiKeyLength: String(apiKey || '').length,
-          headers: { ...(options.headers || {}), 'X-API-Key': redactApiKey(apiKey) },
-        }),
-      );
-    }
-
     const res: any = await this.helpers.httpRequest(options);
     const { statusCode, body } = normalizeHttpResponse(res);
     if (typeof statusCode === 'number' && (statusCode < 200 || statusCode >= 300)) {
       const apiMessage = extractApiErrorMessage(body);
       throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage || 'Request failed'}`);
-    }
-
-    if (isContentStudioDebugEnabled()) {
-      const count = Array.isArray(body?.data) ? body.data.length : undefined;
-      console.log('[ContentStudio][DEBUG] loadOptions.getWorkspaces response', safeStringify({ ok: true, count }));
     }
 
     const list: any[] = body?.data || [];
@@ -235,17 +167,6 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
       .filter((o): o is INodePropertyOptions => !!o);
     return out;
   } catch (error) {
-    if (isContentStudioDebugEnabled()) {
-      const e: any = error;
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getWorkspaces error',
-        safeStringify({
-          statusCode: e?.statusCode || e?.response?.statusCode || e?.response?.status || 'unknown',
-          errorMessage: e?.message,
-          responseBody: e?.response?.body,
-        }),
-      );
-    }
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage}`);
   }
@@ -267,25 +188,7 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
       timeout: 60000,
     };
 
-    if (isContentStudioDebugEnabled()) {
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getPosts request',
-        safeStringify({
-          url: options.url,
-          method: options.method,
-          qs: options.qs,
-          apiKeyLength: String(apiKey || '').length,
-          headers: { ...(options.headers || {}), 'X-API-Key': redactApiKey(apiKey) },
-        }),
-      );
-    }
-
     const res: any = await this.helpers.httpRequest(options);
-
-    if (isContentStudioDebugEnabled()) {
-      const count = Array.isArray(res?.data) ? res.data.length : undefined;
-      console.log('[ContentStudio][DEBUG] loadOptions.getPosts response', safeStringify({ ok: true, count }));
-    }
 
     const list: any[] = res?.data || [];
     const out = list
@@ -300,17 +203,6 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
       .filter((o): o is INodePropertyOptions => !!o);
     return out;
   } catch (error) {
-    if (isContentStudioDebugEnabled()) {
-      const e: any = error;
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getPosts error',
-        safeStringify({
-          statusCode: e?.statusCode || e?.response?.statusCode || e?.response?.status || 'unknown',
-          errorMessage: e?.message,
-          responseBody: e?.response?.body,
-        }),
-      );
-    }
     const msg = (error as any)?.message || String(error);
     throw new Error(`Failed to load Posts: ${msg}`);
   }
@@ -335,19 +227,6 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
       timeout: 60000,
     };
 
-    if (isContentStudioDebugEnabled()) {
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getAccounts request',
-        safeStringify({
-          url: options.url,
-          method: options.method,
-          qs: options.qs,
-          apiKeyLength: String(apiKey || '').length,
-          headers: { ...(options.headers || {}), 'X-API-Key': redactApiKey(apiKey) },
-        }),
-      );
-    }
-
     const res: any = await this.helpers.httpRequest(options);
     const normalized = normalizeHttpResponse(res);
     const statusCode = normalized.statusCode;
@@ -360,28 +239,12 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
       throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage || 'Request failed'}${hint}`);
     }
 
-    if (isContentStudioDebugEnabled()) {
-      const count = Array.isArray(body?.data) ? body.data.length : undefined;
-      console.log('[ContentStudio][DEBUG] loadOptions.getAccounts response', safeStringify({ ok: true, count }));
-    }
-
     const list: any[] = body?.data || [];
     const out = list
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
     return out;
   } catch (error) {
-    if (isContentStudioDebugEnabled()) {
-      const e: any = error;
-      console.log(
-        '[ContentStudio][DEBUG] loadOptions.getAccounts error',
-        safeStringify({
-          statusCode: e?.statusCode || e?.response?.statusCode || e?.response?.status || 'unknown',
-          errorMessage: e?.message,
-          responseBody: e?.response?.body,
-        }),
-      );
-    }
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     const hint = statusCode === 403
       ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
