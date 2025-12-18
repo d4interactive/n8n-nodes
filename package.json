@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-contentstudio",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "n8n node for ContentStudio API (X-API-Key)",
   "keywords": [
     "n8n-community-node-package",
@@ -21,8 +21,8 @@
   "bugs": {
     "url": "https://github.com/d4interactive/n8n-nodes/issues"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/nodes/ContentStudio/ContentStudio.node.js",
+  "types": "dist/nodes/ContentStudio/ContentStudio.node.d.ts",
   "files": [
     "dist",
     "icons",
@@ -35,7 +35,7 @@
       "dist/nodes/ContentStudio/ContentStudio.node.js"
     ],
     "credentials": [
-      "dist/credentials/ContentStudioApi.credentials.js"
+      "dist/credentials/ContentStudio.credentials.js"
     ]
   },
   "scripts": {
