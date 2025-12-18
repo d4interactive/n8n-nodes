@@ -1,8 +1,53 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts } from './loadOptions';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+
+function isContentStudioDebugEnabled(): boolean {
+  const v = process.env.CONTENTSTUDIO_DEBUG;
+  return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true');
+}
+
+function redactApiKey(key: string): string {
+  const k = String(key || '');
+  if (!k) return '';
+  if (k.length <= 8) return '***';
+  return `${k.slice(0, 3)}***${k.slice(-5)}`;
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function extractApiErrorMessage(body: unknown): string {
+  if (!body) return '';
+  if (typeof body === 'string') return body;
+  if (typeof body === 'object') {
+    const b: any = body;
+    return b.message || b.error || b.errors || safeStringify(b);
+  }
+  return String(body);
+}
+
+function extractHttpErrorDetails(error: any): { statusCode: string | number; apiMessage: string } {
+  const statusCode =
+    error?.statusCode ||
+    error?.response?.statusCode ||
+    error?.response?.status ||
+    error?.response?.statusText ||
+    'unknown';
+  const body = error?.response?.body ?? error?.response?.data;
+  const apiMessage = extractApiErrorMessage(body) || error?.message || String(error);
+  return { statusCode, apiMessage };
+}
+
+if (isContentStudioDebugEnabled()) {
+  console.log('[ContentStudio][DEBUG] module loaded: ContentStudio.node');
+}
 
 export class ContentStudio implements INodeType {
   description: INodeTypeDescription = {
@@ -13,8 +58,8 @@ export class ContentStudio implements INodeType {
     description: 'Integrate with ContentStudio API',
     defaults: { name: 'ContentStudio' },
     iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
-    inputs: [NodeConnectionType.Main],
-    outputs: [NodeConnectionType.Main],
+    inputs: ['main'],
+    outputs: ['main'],
     credentials: [{ name: 'contentStudioApi', required: true }],
     properties: [
       // Resource selector
@@ -171,6 +216,16 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['delete'] } },
       },
       {
+        displayName: 'Accounts',
+        name: 'accounts',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        required: true,
+        description: 'Select one or more social accounts to publish to',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
         displayName: 'Content Text',
         name: 'contentText',
         type: 'string',
@@ -232,12 +287,24 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
       {
-        displayName: 'Accounts',
-        name: 'accounts',
-        type: 'multiOptions',
-        typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
-        default: [],
-        description: 'Select one or more social accounts to publish to',
+        displayName: 'Post Type',
+        name: 'postType',
+        type: 'options',
+        options: [
+          { name: 'Feed', value: 'feed' },
+          { name: 'Feed + Reel', value: 'feed+reel' },
+          { name: 'Reel', value: 'reel' },
+          { name: 'Carousel', value: 'carousel' },
+          { name: 'Story', value: 'story' },
+          { name: 'Feed + Story', value: 'feed+story' },
+          { name: 'Feed + Reel + Story', value: 'feed+reel+story' },
+          { name: 'Reel + Story', value: 'reel+story' },
+          { name: 'Carousel + Story', value: 'carousel+story' },
+          { name: 'Video', value: 'video' },
+          { name: 'Shorts', value: 'shorts' }
+        ],
+        default: 'feed',
+        description: 'Type of post to create',
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
       {
@@ -246,7 +313,8 @@ export class ContentStudio implements INodeType {
         type: 'options',
         options: [
           { name: 'Scheduled', value: 'scheduled' },
-          { name: 'Draft', value: 'draft' }
+          { name: 'Queued', value: 'queued' },
+          { name: 'Draft', value: 'draft' },
         ],
         default: 'scheduled',
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
@@ -259,7 +327,35 @@ export class ContentStudio implements INodeType {
         default: '',
         placeholder: '2025-10-11 11:15:00',
         description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['scheduled'] } },
+      },
+      {
+        displayName: 'Enable First Comment',
+        name: 'hasFirstComment',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to add a first comment to the post',
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Comment Message',
+        name: 'firstCommentMessage',
+        type: 'string',
+        required: true,
+        default: '',
+        placeholder: 'Enter your first comment...',
+        description: 'The message to post as the first comment',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
+      },
+      {
+        displayName: 'Comment Accounts',
+        name: 'firstCommentAccounts',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getFirstCommentAccounts', loadOptionsDependsOn: ['workspaceId', 'accounts'] },
+        required: true,
+        default: [],
+        description: 'Select accounts to add the first comment',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
       },
     ],
   };
@@ -270,6 +366,7 @@ export class ContentStudio implements INodeType {
       getWorkspaces,
       getPosts,
       getAccounts,
+      getFirstCommentAccounts,
     },
   };
 
@@ -288,7 +385,7 @@ export class ContentStudio implements INodeType {
       // Base request options
       const options: any = {
         method: 'GET',
-        uri: '',
+        url: '',
         qs: {},
         body: {},
         json: true,
@@ -302,14 +399,14 @@ export class ContentStudio implements INodeType {
       // Routes
       if (resource === 'auth' && operation === 'validateKey') {
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/me`;
+        options.url = `${baseRoot}/v1/me`;
       }
 
       if (resource === 'workspace' && operation === 'list') {
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces`;
+        options.url = `${baseRoot}/v1/workspaces`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -319,7 +416,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const platform = (this.getNodeParameter('platform', i) as string) || undefined;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
         options.qs = { page, per_page: perPage } as any;
         if (platform) (options.qs as any).platform = platform;
       }
@@ -340,7 +437,7 @@ export class ContentStudio implements INodeType {
         if (dateFrom) qs.date_from = dateFrom;
         if (dateTo) qs.date_to = dateTo;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
         options.qs = qs;
       }
 
@@ -350,10 +447,43 @@ export class ContentStudio implements INodeType {
         const mediaImagesParam = this.getNodeParameter('mediaImages', i) as unknown;
         const mediaVideoParam = (this.getNodeParameter('mediaVideo', i) as string) || '';
         const accountsParam = this.getNodeParameter('accounts', i) as unknown;
+        const postType = (this.getNodeParameter('postType', i) as string) || 'feed';
         const publishType = (this.getNodeParameter('publishType', i) as string) || 'scheduled';
-        const scheduledAt = (this.getNodeParameter('scheduledAt', i) as string) || '';
 
-        
+        // Get scheduled_at only if publish_type is 'scheduled'
+        let scheduledAt = '';
+        if (publishType === 'scheduled') {
+          scheduledAt = (this.getNodeParameter('scheduledAt', i) as string) || '';
+        } else {
+          // Auto-generate scheduled_at as now + 90 minutes for queued/draft
+          const futureDate = new Date(Date.now() + 90 * 60 * 1000);
+          const year = futureDate.getFullYear();
+          const month = String(futureDate.getMonth() + 1).padStart(2, '0');
+          const day = String(futureDate.getDate()).padStart(2, '0');
+          const hours = String(futureDate.getHours()).padStart(2, '0');
+          const minutes = String(futureDate.getMinutes()).padStart(2, '0');
+          const seconds = String(futureDate.getSeconds()).padStart(2, '0');
+          scheduledAt = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // First comment fields
+        const hasFirstComment = this.getNodeParameter('hasFirstComment', i, false) as boolean;
+        let firstCommentMessage = '';
+        let firstCommentAccountIds: string[] = [];
+
+        if (hasFirstComment) {
+          firstCommentMessage = (this.getNodeParameter('firstCommentMessage', i) as string) || '';
+          const firstCommentAccountsParam = this.getNodeParameter('firstCommentAccounts', i) as unknown;
+          firstCommentAccountIds = parseAccounts(firstCommentAccountsParam);
+
+          if (!firstCommentMessage.trim()) {
+            throw new Error('First Comment Message is required when Enable First Comment is true');
+          }
+
+          if (firstCommentAccountIds.length === 0) {
+            throw new Error('First Comment Accounts is required when Enable First Comment is true');
+          }
+        }
 
         const mediaImages = parseMediaImages(mediaImagesParam);
         const mediaVideo = parseMediaVideo(mediaVideoParam);
@@ -373,8 +503,21 @@ export class ContentStudio implements INodeType {
           throw new Error('Scheduled At must be in format: YYYY-MM-DD HH:MM:SS (e.g., 2025-10-11 11:15:00)');
         }
 
+        // Validate first comment accounts overlap with main accounts
+        if (hasFirstComment && firstCommentAccountIds.length > 0) {
+          const mainAccountSet = new Set(accounts);
+          const validCommentAccounts = firstCommentAccountIds.filter(id => mainAccountSet.has(id));
+
+          if (validCommentAccounts.length === 0) {
+            throw new Error('First Comment Accounts must include at least one account from the selected main Accounts');
+          }
+
+          // Use only valid overlapping accounts
+          firstCommentAccountIds = validCommentAccounts;
+        }
+
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
         options.body = {
           content: {
             text: contentText,
@@ -384,22 +527,75 @@ export class ContentStudio implements INodeType {
             },
           },
           accounts,
+          post_type: postType,
           scheduling: {
             publish_type: publishType,
             scheduled_at: scheduledAt,
           },
         };
+
+        // Add first comment to body if enabled
+        if (hasFirstComment && firstCommentMessage) {
+          (options.body as any).first_comment = {
+            message: firstCommentMessage,
+            accounts: firstCommentAccountIds,
+          };
+        }
       }
 
       if (resource === 'post' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const postId = this.getNodeParameter('postId', i) as string;
         options.method = 'DELETE';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
       }
 
-      const response = await this.helpers.request!(options);
-      returnData.push({ json: response });
+      try {
+        if (isContentStudioDebugEnabled()) {
+          const headersForLog = {
+            ...(options.headers || {}),
+            'X-API-Key': redactApiKey(apiKey),
+          };
+          console.log(
+            '[ContentStudio][DEBUG] request',
+            safeStringify({
+              resource,
+              operation,
+              baseRoot,
+              apiKeyLength: String(apiKey || '').length,
+              method: options.method,
+              url: options.url,
+              qs: options.qs,
+              timeout: options.timeout,
+              headers: headersForLog,
+            }),
+          );
+        }
+        const response = await this.helpers.httpRequest(options);
+        if (isContentStudioDebugEnabled()) {
+          console.log('[ContentStudio][DEBUG] response', safeStringify({ resource, operation, url: options.url, ok: true }));
+        }
+        returnData.push({ json: response });
+      } catch (error: any) {
+        if (isContentStudioDebugEnabled()) {
+          const statusCode = error?.statusCode || error?.response?.statusCode || error?.response?.status || 'unknown';
+          const body = error?.response?.body ?? error?.response?.data;
+          console.log(
+            '[ContentStudio][DEBUG] error',
+            safeStringify({
+              resource,
+              operation,
+              url: options.url,
+              method: options.method,
+              statusCode,
+              errorMessage: error?.message,
+              responseBody: body,
+            }),
+          );
+        }
+        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+        throw new Error(`ContentStudio API Error (${statusCode}): ${apiMessage}`);
+      }
     }
 
     return [returnData];

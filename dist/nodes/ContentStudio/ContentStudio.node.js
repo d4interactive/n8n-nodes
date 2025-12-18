@@ -4,6 +4,51 @@ exports.ContentStudio = void 0;
 const loadOptions_1 = require("./loadOptions");
 const utils_1 = require("./utils");
 const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
+function isContentStudioDebugEnabled() {
+    const v = process.env.CONTENTSTUDIO_DEBUG;
+    return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true');
+}
+function redactApiKey(key) {
+    const k = String(key || '');
+    if (!k)
+        return '';
+    if (k.length <= 8)
+        return '***';
+    return `${k.slice(0, 3)}***${k.slice(-5)}`;
+}
+function safeStringify(value) {
+    try {
+        return JSON.stringify(value);
+    }
+    catch {
+        return String(value);
+    }
+}
+function extractApiErrorMessage(body) {
+    if (!body)
+        return '';
+    if (typeof body === 'string')
+        return body;
+    if (typeof body === 'object') {
+        const b = body;
+        return b.message || b.error || b.errors || safeStringify(b);
+    }
+    return String(body);
+}
+function extractHttpErrorDetails(error) {
+    var _a, _b, _c, _d, _e, _f;
+    const statusCode = (error === null || error === void 0 ? void 0 : error.statusCode) ||
+        ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.statusCode) ||
+        ((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status) ||
+        ((_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.statusText) ||
+        'unknown';
+    const body = (_e = (_d = error === null || error === void 0 ? void 0 : error.response) === null || _d === void 0 ? void 0 : _d.body) !== null && _e !== void 0 ? _e : (_f = error === null || error === void 0 ? void 0 : error.response) === null || _f === void 0 ? void 0 : _f.data;
+    const apiMessage = extractApiErrorMessage(body) || (error === null || error === void 0 ? void 0 : error.message) || String(error);
+    return { statusCode, apiMessage };
+}
+if (isContentStudioDebugEnabled()) {
+    console.log('[ContentStudio][DEBUG] module loaded: ContentStudio.node');
+}
 class ContentStudio {
     constructor() {
         this.description = {
@@ -14,8 +59,8 @@ class ContentStudio {
             description: 'Integrate with ContentStudio API',
             defaults: { name: 'ContentStudio' },
             iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
-            inputs: ["main" /* NodeConnectionType.Main */],
-            outputs: ["main" /* NodeConnectionType.Main */],
+            inputs: ['main'],
+            outputs: ['main'],
             credentials: [{ name: 'contentStudioApi', required: true }],
             properties: [
                 // Resource selector
@@ -167,6 +212,16 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['post'], operation: ['delete'] } },
                 },
                 {
+                    displayName: 'Accounts',
+                    name: 'accounts',
+                    type: 'multiOptions',
+                    typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
+                    default: [],
+                    required: true,
+                    description: 'Select one or more social accounts to publish to',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                },
+                {
                     displayName: 'Content Text',
                     name: 'contentText',
                     type: 'string',
@@ -228,12 +283,24 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['post'], operation: ['create'] } },
                 },
                 {
-                    displayName: 'Accounts',
-                    name: 'accounts',
-                    type: 'multiOptions',
-                    typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
-                    default: [],
-                    description: 'Select one or more social accounts to publish to',
+                    displayName: 'Post Type',
+                    name: 'postType',
+                    type: 'options',
+                    options: [
+                        { name: 'Feed', value: 'feed' },
+                        { name: 'Feed + Reel', value: 'feed+reel' },
+                        { name: 'Reel', value: 'reel' },
+                        { name: 'Carousel', value: 'carousel' },
+                        { name: 'Story', value: 'story' },
+                        { name: 'Feed + Story', value: 'feed+story' },
+                        { name: 'Feed + Reel + Story', value: 'feed+reel+story' },
+                        { name: 'Reel + Story', value: 'reel+story' },
+                        { name: 'Carousel + Story', value: 'carousel+story' },
+                        { name: 'Video', value: 'video' },
+                        { name: 'Shorts', value: 'shorts' }
+                    ],
+                    default: 'feed',
+                    description: 'Type of post to create',
                     displayOptions: { show: { resource: ['post'], operation: ['create'] } },
                 },
                 {
@@ -242,7 +309,8 @@ class ContentStudio {
                     type: 'options',
                     options: [
                         { name: 'Scheduled', value: 'scheduled' },
-                        { name: 'Draft', value: 'draft' }
+                        { name: 'Queued', value: 'queued' },
+                        { name: 'Draft', value: 'draft' },
                     ],
                     default: 'scheduled',
                     displayOptions: { show: { resource: ['post'], operation: ['create'] } },
@@ -255,7 +323,35 @@ class ContentStudio {
                     default: '',
                     placeholder: '2025-10-11 11:15:00',
                     description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['scheduled'] } },
+                },
+                {
+                    displayName: 'Enable First Comment',
+                    name: 'hasFirstComment',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to add a first comment to the post',
                     displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                },
+                {
+                    displayName: 'Comment Message',
+                    name: 'firstCommentMessage',
+                    type: 'string',
+                    required: true,
+                    default: '',
+                    placeholder: 'Enter your first comment...',
+                    description: 'The message to post as the first comment',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
+                },
+                {
+                    displayName: 'Comment Accounts',
+                    name: 'firstCommentAccounts',
+                    type: 'multiOptions',
+                    typeOptions: { loadOptionsMethod: 'getFirstCommentAccounts', loadOptionsDependsOn: ['workspaceId', 'accounts'] },
+                    required: true,
+                    default: [],
+                    description: 'Select accounts to add the first comment',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
                 },
             ],
         };
@@ -265,10 +361,12 @@ class ContentStudio {
                 getWorkspaces: loadOptions_1.getWorkspaces,
                 getPosts: loadOptions_1.getPosts,
                 getAccounts: loadOptions_1.getAccounts,
+                getFirstCommentAccounts: loadOptions_1.getFirstCommentAccounts,
             },
         };
     }
     async execute() {
+        var _a, _b, _c, _d, _e;
         const items = this.getInputData();
         const returnData = [];
         for (let i = 0; i < items.length; i++) {
@@ -280,7 +378,7 @@ class ContentStudio {
             // Base request options
             const options = {
                 method: 'GET',
-                uri: '',
+                url: '',
                 qs: {},
                 body: {},
                 json: true,
@@ -293,13 +391,13 @@ class ContentStudio {
             // Routes
             if (resource === 'auth' && operation === 'validateKey') {
                 options.method = 'GET';
-                options.uri = `${baseRoot}/v1/me`;
+                options.url = `${baseRoot}/v1/me`;
             }
             if (resource === 'workspace' && operation === 'list') {
                 const page = this.getNodeParameter('page', i);
                 const perPage = this.getNodeParameter('perPage', i);
                 options.method = 'GET';
-                options.uri = `${baseRoot}/v1/workspaces`;
+                options.url = `${baseRoot}/v1/workspaces`;
                 options.qs = { page, per_page: perPage };
             }
             if (resource === 'socialAccount' && operation === 'list') {
@@ -308,7 +406,7 @@ class ContentStudio {
                 const perPage = this.getNodeParameter('perPage', i);
                 const platform = this.getNodeParameter('platform', i) || undefined;
                 options.method = 'GET';
-                options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+                options.url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
                 options.qs = { page, per_page: perPage };
                 if (platform)
                     options.qs.platform = platform;
@@ -332,7 +430,7 @@ class ContentStudio {
                 if (dateTo)
                     qs.date_to = dateTo;
                 options.method = 'GET';
-                options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+                options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
                 options.qs = qs;
             }
             if (resource === 'post' && operation === 'create') {
@@ -341,8 +439,39 @@ class ContentStudio {
                 const mediaImagesParam = this.getNodeParameter('mediaImages', i);
                 const mediaVideoParam = this.getNodeParameter('mediaVideo', i) || '';
                 const accountsParam = this.getNodeParameter('accounts', i);
+                const postType = this.getNodeParameter('postType', i) || 'feed';
                 const publishType = this.getNodeParameter('publishType', i) || 'scheduled';
-                const scheduledAt = this.getNodeParameter('scheduledAt', i) || '';
+                // Get scheduled_at only if publish_type is 'scheduled'
+                let scheduledAt = '';
+                if (publishType === 'scheduled') {
+                    scheduledAt = this.getNodeParameter('scheduledAt', i) || '';
+                }
+                else {
+                    // Auto-generate scheduled_at as now + 90 minutes for queued/draft
+                    const futureDate = new Date(Date.now() + 90 * 60 * 1000);
+                    const year = futureDate.getFullYear();
+                    const month = String(futureDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(futureDate.getDate()).padStart(2, '0');
+                    const hours = String(futureDate.getHours()).padStart(2, '0');
+                    const minutes = String(futureDate.getMinutes()).padStart(2, '0');
+                    const seconds = String(futureDate.getSeconds()).padStart(2, '0');
+                    scheduledAt = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                }
+                // First comment fields
+                const hasFirstComment = this.getNodeParameter('hasFirstComment', i, false);
+                let firstCommentMessage = '';
+                let firstCommentAccountIds = [];
+                if (hasFirstComment) {
+                    firstCommentMessage = this.getNodeParameter('firstCommentMessage', i) || '';
+                    const firstCommentAccountsParam = this.getNodeParameter('firstCommentAccounts', i);
+                    firstCommentAccountIds = (0, utils_1.parseAccounts)(firstCommentAccountsParam);
+                    if (!firstCommentMessage.trim()) {
+                        throw new Error('First Comment Message is required when Enable First Comment is true');
+                    }
+                    if (firstCommentAccountIds.length === 0) {
+                        throw new Error('First Comment Accounts is required when Enable First Comment is true');
+                    }
+                }
                 const mediaImages = (0, utils_1.parseMediaImages)(mediaImagesParam);
                 const mediaVideo = (0, utils_1.parseMediaVideo)(mediaVideoParam);
                 const accounts = (0, utils_1.parseAccounts)(accountsParam);
@@ -357,8 +486,18 @@ class ContentStudio {
                 if (scheduledAt && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(scheduledAt)) {
                     throw new Error('Scheduled At must be in format: YYYY-MM-DD HH:MM:SS (e.g., 2025-10-11 11:15:00)');
                 }
+                // Validate first comment accounts overlap with main accounts
+                if (hasFirstComment && firstCommentAccountIds.length > 0) {
+                    const mainAccountSet = new Set(accounts);
+                    const validCommentAccounts = firstCommentAccountIds.filter(id => mainAccountSet.has(id));
+                    if (validCommentAccounts.length === 0) {
+                        throw new Error('First Comment Accounts must include at least one account from the selected main Accounts');
+                    }
+                    // Use only valid overlapping accounts
+                    firstCommentAccountIds = validCommentAccounts;
+                }
                 options.method = 'POST';
-                options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+                options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
                 options.body = {
                     content: {
                         text: contentText,
@@ -368,20 +507,67 @@ class ContentStudio {
                         },
                     },
                     accounts,
+                    post_type: postType,
                     scheduling: {
                         publish_type: publishType,
                         scheduled_at: scheduledAt,
                     },
                 };
+                // Add first comment to body if enabled
+                if (hasFirstComment && firstCommentMessage) {
+                    options.body.first_comment = {
+                        message: firstCommentMessage,
+                        accounts: firstCommentAccountIds,
+                    };
+                }
             }
             if (resource === 'post' && operation === 'delete') {
                 const workspaceId = this.getNodeParameter('workspaceId', i);
                 const postId = this.getNodeParameter('postId', i);
                 options.method = 'DELETE';
-                options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
+                options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
             }
-            const response = await this.helpers.request(options);
-            returnData.push({ json: response });
+            try {
+                if (isContentStudioDebugEnabled()) {
+                    const headersForLog = {
+                        ...(options.headers || {}),
+                        'X-API-Key': redactApiKey(apiKey),
+                    };
+                    console.log('[ContentStudio][DEBUG] request', safeStringify({
+                        resource,
+                        operation,
+                        baseRoot,
+                        apiKeyLength: String(apiKey || '').length,
+                        method: options.method,
+                        url: options.url,
+                        qs: options.qs,
+                        timeout: options.timeout,
+                        headers: headersForLog,
+                    }));
+                }
+                const response = await this.helpers.httpRequest(options);
+                if (isContentStudioDebugEnabled()) {
+                    console.log('[ContentStudio][DEBUG] response', safeStringify({ resource, operation, url: options.url, ok: true }));
+                }
+                returnData.push({ json: response });
+            }
+            catch (error) {
+                if (isContentStudioDebugEnabled()) {
+                    const statusCode = (error === null || error === void 0 ? void 0 : error.statusCode) || ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.statusCode) || ((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status) || 'unknown';
+                    const body = (_d = (_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.body) !== null && _d !== void 0 ? _d : (_e = error === null || error === void 0 ? void 0 : error.response) === null || _e === void 0 ? void 0 : _e.data;
+                    console.log('[ContentStudio][DEBUG] error', safeStringify({
+                        resource,
+                        operation,
+                        url: options.url,
+                        method: options.method,
+                        statusCode,
+                        errorMessage: error === null || error === void 0 ? void 0 : error.message,
+                        responseBody: body,
+                    }));
+                }
+                const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+                throw new Error(`ContentStudio API Error (${statusCode}): ${apiMessage}`);
+            }
         }
         return [returnData];
     }

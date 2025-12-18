@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContentStudioApi = exports.BASE_URL = void 0;
 const DISPLAY_NAME = 'ContentStudio API';
-exports.BASE_URL = 'https://api-prod.contentstudio.io/';
+exports.BASE_URL = 'https://api-prod.contentstudio.io/api';
 class ContentStudioApi {
     constructor() {
         this.name = 'contentStudioApi';
