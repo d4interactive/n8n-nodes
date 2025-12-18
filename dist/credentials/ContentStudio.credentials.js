@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ContentStudioApi = exports.BASE_URL = void 0;
+exports.ContentStudio = exports.BASE_URL = void 0;
 const DISPLAY_NAME = 'ContentStudio API';
 exports.BASE_URL = 'https://api-prod.contentstudio.io/api';
-class ContentStudioApi {
+class ContentStudio {
     constructor() {
-        this.name = 'contentStudioApi';
+        this.name = 'contentStudio';
         this.displayName = DISPLAY_NAME;
         this.documentationUrl = 'https://api.contentstudio.io/guide';
         this.properties = [
@@ -21,4 +21,4 @@ class ContentStudioApi {
         ];
     }
 }
-exports.ContentStudioApi = ContentStudioApi;
+exports.ContentStudio = ContentStudio;

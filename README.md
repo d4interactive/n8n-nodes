@@ -28,7 +28,7 @@ npm install n8n-nodes-contentstudio
 This node requires ContentStudio API credentials:
 
 1. **API Key**: Your ContentStudio API key
-2. **Base URL**: Fixed to `https://api-prod.contentstudio.io/` (no input required)
+2. **Base URL**: Fixed to `https://api-prod.contentstudio.io/api` (no input required)
 
 ## Operations
 
@@ -83,6 +83,19 @@ This node works with ContentStudio API v1 and supports:
 - **Issues**: [GitHub Issues](https://github.com/d4interactive/n8n-nodes/issues)
 - **Documentation**: [ContentStudio API Docs](https://docs.contentstudio.io/)
 - **n8n Community**: [n8n Community Forum](https://community.n8n.io/)
+
+## Development
+
+### File structure
+```
+credentials/
+  ContentStudio.credentials.ts
+nodes/
+  ContentStudio/
+    ContentStudio.node.ts
+    loadOptions.ts
+    utils.ts
+```
 
 ## License
 

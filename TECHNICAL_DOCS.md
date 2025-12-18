@@ -7,10 +7,12 @@ This is a custom n8n node for integrating with the ContentStudio API. The node s
 
 ### File Structure
 ```
-src/nodes/ContentStudio/
-├── ContentStudio.node.ts     # Main node class and configuration
-├── loadOptions.ts            # Dynamic dropdown data loaders
-└── utils.ts                  # Utility functions and parsers
+credentials/
+\- ContentStudio.credentials.ts
+nodes/ContentStudio/
+\- ContentStudio.node.ts     # Main node class and configuration
+\- loadOptions.ts            # Dynamic dropdown data loaders
+\- utils.ts                  # Utility functions and parsers
 ```
 
 ### Modular Design
@@ -27,7 +29,7 @@ The codebase follows a modular approach for better maintainability:
 - **Name**: contentStudio
 - **Group**: transform
 - **Version**: [4, 5]
-- **Credentials**: contentStudioApi (required)
+- **Credentials**: contentStudio (required)
 
 ### Resources and Operations
 
@@ -55,6 +57,10 @@ headers: {
   'X-API-Key': apiKey 
 }
 ```
+
+The base API root used by this integration is:
+
+`https://api-prod.contentstudio.io/api`
 
 ### Base URL Normalization
 The `normalizeBase()` function ensures consistent API endpoint formatting:
@@ -197,7 +203,7 @@ ln -sfn /var/www/html/n8n-nodes-contentstudio ~/.n8n/nodes/n8n-nodes-contentstud
 - `GET /v1/workspaces/{id}/accounts` - List social accounts
 
 ### Authentication
-- `GET /v1/auth/validate` - Validate API key
+- `GET /v1/me` - Validate API key
 
 ## Version History
 

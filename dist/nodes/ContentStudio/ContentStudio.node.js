@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContentStudio = void 0;
 const loadOptions_1 = require("./loadOptions");
 const utils_1 = require("./utils");
-const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
+const ContentStudio_credentials_1 = require("../../credentials/ContentStudio.credentials");
 function safeStringify(value) {
     try {
         return JSON.stringify(value);
@@ -46,7 +46,7 @@ class ContentStudio {
             iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
             inputs: ['main'],
             outputs: ['main'],
-            credentials: [{ name: 'contentStudioApi', required: true }],
+            credentials: [{ name: 'contentStudio', required: true }],
             properties: [
                 // Resource selector
                 {
@@ -356,8 +356,8 @@ class ContentStudio {
         for (let i = 0; i < items.length; i++) {
             const resource = this.getNodeParameter('resource', i);
             const operation = this.getNodeParameter('operation', i);
-            const credentials = await this.getCredentials('contentStudioApi');
-            const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+            const credentials = await this.getCredentials('contentStudio');
+            const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
             const apiKey = credentials.apiKey;
             // Base request options
             const options = {

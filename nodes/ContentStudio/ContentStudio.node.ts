@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
-import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+import { BASE_URL } from '../../credentials/ContentStudio.credentials';
 
 function safeStringify(value: unknown): string {
   try {
@@ -44,7 +44,7 @@ export class ContentStudio implements INodeType {
     iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
     inputs: ['main'],
     outputs: ['main'],
-    credentials: [{ name: 'contentStudioApi', required: true }],
+    credentials: [{ name: 'contentStudio', required: true }],
     properties: [
       // Resource selector
       {
@@ -362,7 +362,7 @@ export class ContentStudio implements INodeType {
       const resource = this.getNodeParameter('resource', i) as string;
       const operation = this.getNodeParameter('operation', i) as string;
 
-      const credentials = await this.getCredentials('contentStudioApi');
+      const credentials = await this.getCredentials('contentStudio');
       const baseRoot = normalizeBase(BASE_URL);
       const apiKey = credentials.apiKey as string;
 

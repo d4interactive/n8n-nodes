@@ -1,6 +1,6 @@
 import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { normalizeBase } from './utils';
-import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+import { BASE_URL } from '../../credentials/ContentStudio.credentials';
 
 function safeStringify(value: unknown): string {
   try {
@@ -78,7 +78,7 @@ function parseSelectedAccountIds(val: unknown): string[] {
 
 export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
+    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
@@ -135,7 +135,7 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
 
 export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
+    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const options: any = {
@@ -174,7 +174,7 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
 
 export async function getPosts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
+    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
@@ -211,7 +211,7 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
 export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   let workspaceId = '';
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
+    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
     const apiKey = credentials.apiKey as string;
     workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';

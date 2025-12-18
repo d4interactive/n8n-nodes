@@ -5,7 +5,7 @@ exports.getWorkspaces = getWorkspaces;
 exports.getPosts = getPosts;
 exports.getAccounts = getAccounts;
 const utils_1 = require("./utils");
-const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
+const ContentStudio_credentials_1 = require("../../credentials/ContentStudio.credentials");
 function safeStringify(value) {
     try {
         return JSON.stringify(value);
@@ -79,8 +79,8 @@ function parseSelectedAccountIds(val) {
 }
 async function getFirstCommentAccounts() {
     try {
-        const credentials = await this.getCredentials('contentStudioApi');
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+        const credentials = await this.getCredentials('contentStudio');
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
         const apiKey = credentials.apiKey;
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
@@ -131,8 +131,8 @@ async function getFirstCommentAccounts() {
 }
 async function getWorkspaces() {
     try {
-        const credentials = await this.getCredentials('contentStudioApi');
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+        const credentials = await this.getCredentials('contentStudio');
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
         const apiKey = credentials.apiKey;
         const options = {
             method: 'GET',
@@ -169,8 +169,8 @@ async function getWorkspaces() {
 }
 async function getPosts() {
     try {
-        const credentials = await this.getCredentials('contentStudioApi');
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+        const credentials = await this.getCredentials('contentStudio');
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
         const apiKey = credentials.apiKey;
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
@@ -207,8 +207,8 @@ async function getPosts() {
 async function getAccounts() {
     let workspaceId = '';
     try {
-        const credentials = await this.getCredentials('contentStudioApi');
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+        const credentials = await this.getCredentials('contentStudio');
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
         const apiKey = credentials.apiKey;
         workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
