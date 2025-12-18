@@ -19,6 +19,18 @@ class ContentStudio {
                 description: 'Your ContentStudio X-API-Key',
             },
         ];
+        this.test = {
+            request: {
+                baseURL: exports.BASE_URL,
+                url: '/v1/me',
+            },
+        };
+    }
+    async authenticate(credentials, requestOptions) {
+        var _a;
+        (_a = requestOptions.headers) !== null && _a !== void 0 ? _a : (requestOptions.headers = {});
+        requestOptions.headers['X-API-Key'] = credentials.apiKey;
+        return requestOptions;
     }
 }
 exports.ContentStudio = ContentStudio;
