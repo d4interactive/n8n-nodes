@@ -704,7 +704,7 @@ export class ContentStudio implements INodeType {
         if (!approvalAction) throw new Error('Action is required (approve or reject)');
 
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/plans/${planId}/approval`;
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
         options.body = { action: approvalAction };
         if (comment) {
           options.body.comment = comment;
