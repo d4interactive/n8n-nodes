@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories } from './loadOptions';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
@@ -12,8 +12,8 @@ export class ContentStudio implements INodeType {
     description: 'Integrate with ContentStudio API',
     defaults: { name: 'ContentStudio' },
     iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
-    inputs: [NodeConnectionType.Main],
-    outputs: [NodeConnectionType.Main],
+    inputs: ['main'] as any,
+    outputs: ['main'] as any,
     credentials: [{ name: 'contentStudioApi', required: true }],
     properties: [
       // Resource selector
@@ -27,6 +27,7 @@ export class ContentStudio implements INodeType {
           { name: 'Workspace', value: 'workspace' },
           { name: 'Social Account', value: 'socialAccount' },
           { name: 'Content Category', value: 'contentCategory' },
+          { name: 'Team Member', value: 'teamMember' },
           { name: 'Post', value: 'post' },
         ],
         default: 'auth',
@@ -81,11 +82,23 @@ export class ContentStudio implements INodeType {
         name: 'operation',
         type: 'options',
         noDataExpression: true,
+        displayOptions: { show: { resource: ['teamMember'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Team Members' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
         displayOptions: { show: { resource: ['post'] } },
         options: [
           { name: 'List', value: 'list', action: 'List Posts' },
           { name: 'Create', value: 'create', action: 'Create Social Post' },
           { name: 'Delete', value: 'delete', action: 'Delete Post' },
+          { name: 'Approve/Reject', value: 'approve', action: 'Approve or Reject Post' },
         ],
         default: 'list',
       },
@@ -101,7 +114,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'post'],
+            resource: ['socialAccount', 'contentCategory', 'teamMember', 'post'],
           },
         },
       },
@@ -112,7 +125,7 @@ export class ContentStudio implements INodeType {
         default: 1,
         typeOptions: { minValue: 1 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'post'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'teamMember', 'post'], operation: ['list'] },
         },
       },
       {
@@ -122,7 +135,7 @@ export class ContentStudio implements INodeType {
         default: 10,
         typeOptions: { minValue: 1, maxValue: 100 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'post'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'teamMember', 'post'], operation: ['list'] },
         },
       },
 
@@ -135,6 +148,18 @@ export class ContentStudio implements INodeType {
         description: 'Optional platform filter',
         displayOptions: {
           show: { resource: ['socialAccount'], operation: ['list'] },
+        },
+      },
+
+      // Team member search
+      {
+        displayName: 'Search',
+        name: 'teamSearch',
+        type: 'string',
+        default: '',
+        description: 'Optional search term to filter team members by name or email',
+        displayOptions: {
+          show: { resource: ['teamMember'], operation: ['list'] },
         },
       },
 
@@ -168,6 +193,59 @@ export class ContentStudio implements INodeType {
         displayOptions: {
           show: { resource: ['post'], operation: ['list'] },
         },
+      },
+
+      {
+        displayName: 'Approval Assigned To',
+        name: 'approvalAssignedTo',
+        type: 'string',
+        default: '',
+        description: 'Filter by approver user IDs (comma-separated). Get IDs from the Team Member resource.',
+        displayOptions: {
+          show: { resource: ['post'], operation: ['list'] },
+        },
+      },
+      {
+        displayName: 'Approval Requested By',
+        name: 'approvalRequestedBy',
+        type: 'string',
+        default: '',
+        description: 'Filter by users who requested approval (comma-separated). Get IDs from the Team Member resource.',
+        displayOptions: {
+          show: { resource: ['post'], operation: ['list'] },
+        },
+      },
+
+      // Posts approve fields
+      {
+        displayName: 'Post/Plan ID',
+        name: 'planId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The ID of the post (plan) to approve or reject. Get this from the Post List operation.',
+        displayOptions: { show: { resource: ['post'], operation: ['approve'] } },
+      },
+      {
+        displayName: 'Action',
+        name: 'approvalAction',
+        type: 'options',
+        options: [
+          { name: 'Approve', value: 'approve' },
+          { name: 'Reject', value: 'reject' },
+        ],
+        default: 'approve',
+        required: true,
+        description: 'Choose whether to approve or reject the post',
+        displayOptions: { show: { resource: ['post'], operation: ['approve'] } },
+      },
+      {
+        displayName: 'Comment',
+        name: 'approvalComment',
+        type: 'string',
+        default: '',
+        description: 'Optional comment for the approval or rejection',
+        displayOptions: { show: { resource: ['post'], operation: ['approve'] } },
       },
 
       // Posts create/delete
@@ -253,15 +331,6 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
       {
-        displayName: 'Accounts',
-        name: 'accounts',
-        type: 'multiOptions',
-        typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
-        default: [],
-        description: 'Select one or more social accounts to publish to',
-        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
-      },
-      {
         displayName: 'Publish Type',
         name: 'publishType',
         type: 'options',
@@ -295,6 +364,14 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
       {
+        displayName: 'Enable First Comment',
+        name: 'hasFirstComment',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to add a first comment to the post',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
         displayName: 'Comment Message',
         name: 'firstCommentMessage',
         type: 'string',
@@ -314,6 +391,45 @@ export class ContentStudio implements INodeType {
         description: 'Select accounts to add the first comment. Optional if using Content Category (accounts will be merged from category).',
         displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
       },
+
+      // Post create — approval fields
+      {
+        displayName: 'Send for Approval',
+        name: 'sendForApproval',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to send this post for approval before publishing',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Approver IDs',
+        name: 'approvers',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Comma-separated user IDs of team members who can approve. Get IDs from the Team Member resource.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+      },
+      {
+        displayName: 'Approval Mode',
+        name: 'approveOption',
+        type: 'options',
+        options: [
+          { name: 'Anyone', value: 'anyone' },
+          { name: 'Everyone', value: 'everyone' },
+        ],
+        default: 'anyone',
+        description: '"Anyone" = any single approver can approve. "Everyone" = all approvers must approve.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+      },
+      {
+        displayName: 'Notes for Approvers',
+        name: 'approvalNotes',
+        type: 'string',
+        default: '',
+        description: 'Optional notes for the approvers',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+      },
     ],
   };
 
@@ -325,6 +441,7 @@ export class ContentStudio implements INodeType {
       getAccounts,
       getFirstCommentAccounts,
       getContentCategories,
+      getTeamMembers,
     },
   };
 
@@ -388,6 +505,18 @@ export class ContentStudio implements INodeType {
         options.qs = { page, per_page: perPage };
       }
 
+      if (resource === 'teamMember' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const search = (this.getNodeParameter('teamSearch', i) as string) || '';
+        options.method = 'GET';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (search) qs.search = search;
+        options.qs = qs;
+      }
+
       if (resource === 'post' && operation === 'list') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const page = this.getNodeParameter('page', i) as number;
@@ -395,17 +524,30 @@ export class ContentStudio implements INodeType {
         const statusesCsv = (this.getNodeParameter('statusesCsv', i) as string) || '';
         const dateFrom = (this.getNodeParameter('dateFrom', i) as string) || '';
         const dateTo = (this.getNodeParameter('dateTo', i) as string) || '';
-        const qs: Record<string, any> = { page, per_page: perPage };
+        const approvalAssignedTo = (this.getNodeParameter('approvalAssignedTo', i, '') as string) || '';
+        const approvalRequestedBy = (this.getNodeParameter('approvalRequestedBy', i, '') as string) || '';
+
+        // Build query string manually to ensure proper array format
+        const qsParts: string[] = [`page=${page}`, `per_page=${perPage}`];
         const statuses = Array.from(new Set(statusesCsv.split(',').map(s => s.trim()).filter(Boolean)));
-        statuses.forEach((s) => {
-          if (!qs['status[]']) qs['status[]'] = [];
-          qs['status[]'].push(s);
-        });
-        if (dateFrom) qs.date_from = dateFrom;
-        if (dateTo) qs.date_to = dateTo;
+        statuses.forEach((s) => qsParts.push(`status[]=${encodeURIComponent(s)}`));
+        if (dateFrom) qsParts.push(`date_from=${encodeURIComponent(dateFrom)}`);
+        if (dateTo) qsParts.push(`date_to=${encodeURIComponent(dateTo)}`);
+        if (approvalAssignedTo.trim()) {
+          approvalAssignedTo.split(',')
+            .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
+            .filter(Boolean)
+            .forEach((id) => qsParts.push(`approval_assigned_to[]=${encodeURIComponent(id)}`));
+        }
+        if (approvalRequestedBy.trim()) {
+          approvalRequestedBy.split(',')
+            .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
+            .filter(Boolean)
+            .forEach((id) => qsParts.push(`approval_requested_by[]=${encodeURIComponent(id)}`));
+        }
+
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
-        options.qs = qs;
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
       }
 
       if (resource === 'post' && operation === 'create') {
@@ -523,6 +665,26 @@ export class ContentStudio implements INodeType {
             accounts: firstCommentAccountIds,
           };
         }
+
+        // Add approval if enabled
+        const sendForApproval = this.getNodeParameter('sendForApproval', i, false) as boolean;
+        if (sendForApproval) {
+          const approversRaw = (this.getNodeParameter('approvers', i) as string) || '';
+          const approvers = approversRaw.split(',').map(s => s.trim()).filter(Boolean);
+          if (approvers.length === 0) {
+            throw new Error('At least one Approver ID is required when Send for Approval is enabled');
+          }
+          const approveOption = (this.getNodeParameter('approveOption', i) as string) || 'anyone';
+          const approvalNotes = (this.getNodeParameter('approvalNotes', i) as string) || '';
+
+          (options.body as any).approval = {
+            approvers,
+            approve_option: approveOption,
+          };
+          if (approvalNotes) {
+            (options.body as any).approval.notes = approvalNotes;
+          }
+        }
       }
 
       if (resource === 'post' && operation === 'delete') {
@@ -532,8 +694,45 @@ export class ContentStudio implements INodeType {
         options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
       }
 
-      const response = await this.helpers.request!(options);
-      returnData.push({ json: response });
+      if (resource === 'post' && operation === 'approve') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const planId = this.getNodeParameter('planId', i) as string;
+        const approvalAction = this.getNodeParameter('approvalAction', i) as string;
+        const comment = (this.getNodeParameter('approvalComment', i) as string) || '';
+
+        if (!planId) throw new Error('Post/Plan ID is required');
+        if (!approvalAction) throw new Error('Action is required (approve or reject)');
+
+        options.method = 'POST';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/plans/${planId}/approval`;
+        options.body = { action: approvalAction };
+        if (comment) {
+          options.body.comment = comment;
+        }
+      }
+
+      try {
+        const response = await this.helpers.request!(options);
+        returnData.push({ json: response });
+      } catch (error) {
+        const errAny = error as any;
+        let errorMessage = '';
+        // Try to extract backend error message from response body
+        if (errAny?.response?.body) {
+          try {
+            const body = typeof errAny.response.body === 'string'
+              ? JSON.parse(errAny.response.body)
+              : errAny.response.body;
+            errorMessage = body?.message || '';
+          } catch (_e) {
+            errorMessage = String(errAny.response.body);
+          }
+        }
+        if (!errorMessage) {
+          errorMessage = errAny?.message || String(error);
+        }
+        throw new Error(`${resource}.${operation} failed: ${errorMessage}`);
+      }
     }
 
     return [returnData];
