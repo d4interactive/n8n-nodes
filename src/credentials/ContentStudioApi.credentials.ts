@@ -1,7 +1,7 @@
 import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 const DISPLAY_NAME = 'ContentStudio API';
-export const BASE_URL = 'https://qa-api.contentstudio.io/api';
+export const BASE_URL = 'http://localhost:8000/api';
 
 export class ContentStudioApi implements ICredentialType {
   name = 'contentStudioApi';
