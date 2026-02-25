@@ -1,6 +1,6 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers } from './loadOptions';
-import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo } from './utils';
+import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
 export class ContentStudio implements INodeType {
@@ -27,8 +27,12 @@ export class ContentStudio implements INodeType {
           { name: 'Workspace', value: 'workspace' },
           { name: 'Social Account', value: 'socialAccount' },
           { name: 'Content Category', value: 'contentCategory' },
+          { name: 'Label', value: 'label' },
+          { name: 'Campaign', value: 'campaign' },
+          { name: 'Media', value: 'media' },
           { name: 'Team Member', value: 'teamMember' },
           { name: 'Post', value: 'post' },
+          { name: 'Comment', value: 'comment' },
         ],
         default: 'auth',
         required: true,
@@ -82,9 +86,55 @@ export class ContentStudio implements INodeType {
         name: 'operation',
         type: 'options',
         noDataExpression: true,
+        displayOptions: { show: { resource: ['label'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Labels' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['campaign'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Campaigns' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['media'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Media' },
+          { name: 'Upload', value: 'upload', action: 'Upload Media' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
         displayOptions: { show: { resource: ['teamMember'] } },
         options: [
           { name: 'List', value: 'list', action: 'List Team Members' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['comment'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Comments' },
+          { name: 'Create', value: 'create', action: 'Add Comment' },
         ],
         default: 'list',
       },
@@ -114,7 +164,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'teamMember', 'post'],
+            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'],
           },
         },
       },
@@ -125,7 +175,7 @@ export class ContentStudio implements INodeType {
         default: 1,
         typeOptions: { minValue: 1 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'teamMember', 'post'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'], operation: ['list'] },
         },
       },
       {
@@ -135,7 +185,7 @@ export class ContentStudio implements INodeType {
         default: 10,
         typeOptions: { minValue: 1, maxValue: 100 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'teamMember', 'post'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'], operation: ['list'] },
         },
       },
 
@@ -151,6 +201,97 @@ export class ContentStudio implements INodeType {
         },
       },
 
+      // Label search
+      {
+        displayName: 'Search',
+        name: 'labelSearch',
+        type: 'string',
+        default: '',
+        description: 'Optional search term to filter labels by name',
+        displayOptions: {
+          show: { resource: ['label'], operation: ['list'] },
+        },
+      },
+
+      // Campaign search
+      {
+        displayName: 'Search',
+        name: 'campaignSearch',
+        type: 'string',
+        default: '',
+        description: 'Optional search term to filter campaigns by name',
+        displayOptions: {
+          show: { resource: ['campaign'], operation: ['list'] },
+        },
+      },
+
+      // Media list filters
+      {
+        displayName: 'Media Type',
+        name: 'mediaType',
+        type: 'options',
+        options: [
+          { name: 'All', value: '' },
+          { name: 'Images', value: 'images' },
+          { name: 'Videos', value: 'videos' },
+        ],
+        default: '',
+        description: 'Filter by media type',
+        displayOptions: {
+          show: { resource: ['media'], operation: ['list'] },
+        },
+      },
+      {
+        displayName: 'Search',
+        name: 'mediaSearch',
+        type: 'string',
+        default: '',
+        description: 'Search media by name',
+        displayOptions: {
+          show: { resource: ['media'], operation: ['list'] },
+        },
+      },
+      {
+        displayName: 'Sort',
+        name: 'mediaSort',
+        type: 'options',
+        options: [
+          { name: 'Recent', value: 'recent' },
+          { name: 'Oldest', value: 'oldest' },
+          { name: 'Size', value: 'size' },
+          { name: 'A-Z', value: 'a2z' },
+          { name: 'Z-A', value: 'z2a' },
+        ],
+        default: 'recent',
+        description: 'Sort media results',
+        displayOptions: {
+          show: { resource: ['media'], operation: ['list'] },
+        },
+      },
+
+      // Media upload fields
+      {
+        displayName: 'Media URL',
+        name: 'mediaUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'URL of the image or video to import into the media library',
+        displayOptions: {
+          show: { resource: ['media'], operation: ['upload'] },
+        },
+      },
+      {
+        displayName: 'Folder ID',
+        name: 'mediaFolderId',
+        type: 'string',
+        default: '',
+        description: 'Optional folder ID to upload the media into',
+        displayOptions: {
+          show: { resource: ['media'], operation: ['upload'] },
+        },
+      },
+
       // Team member search
       {
         displayName: 'Search',
@@ -160,6 +301,50 @@ export class ContentStudio implements INodeType {
         description: 'Optional search term to filter team members by name or email',
         displayOptions: {
           show: { resource: ['teamMember'], operation: ['list'] },
+        },
+      },
+
+      // Comment fields
+      {
+        displayName: 'Post ID',
+        name: 'commentPostId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The post ID to fetch comments for or add a comment to',
+        displayOptions: {
+          show: { resource: ['comment'] },
+        },
+      },
+      {
+        displayName: 'Comment Text',
+        name: 'commentText',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The comment text to add',
+        displayOptions: {
+          show: { resource: ['comment'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Internal Note',
+        name: 'commentIsNote',
+        type: 'boolean',
+        default: false,
+        description: 'Whether this is an internal note (private, not visible to clients)',
+        displayOptions: {
+          show: { resource: ['comment'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Mentioned User IDs',
+        name: 'commentMentionedUsers',
+        type: 'string',
+        default: '',
+        description: 'Comma-separated user IDs to mention in the comment',
+        displayOptions: {
+          show: { resource: ['comment'], operation: ['create'] },
         },
       },
 
@@ -430,6 +615,24 @@ export class ContentStudio implements INodeType {
         description: 'Optional notes for the approvers',
         displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
       },
+
+      // Post create — labels & campaign
+      {
+        displayName: 'Label IDs',
+        name: 'labels',
+        type: 'string',
+        default: '',
+        description: 'Comma-separated label IDs to assign to the post. Get IDs from the Label resource. Max 20.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Campaign ID',
+        name: 'campaignId',
+        type: 'string',
+        default: '',
+        description: 'Campaign ID to assign the post to. Get the ID from the Campaign resource.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
     ],
   };
 
@@ -505,6 +708,57 @@ export class ContentStudio implements INodeType {
         options.qs = { page, per_page: perPage };
       }
 
+      if (resource === 'label' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const search = (this.getNodeParameter('labelSearch', i) as string) || '';
+        options.method = 'GET';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/labels`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (search) qs.search = search;
+        options.qs = qs;
+      }
+
+      if (resource === 'campaign' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const search = (this.getNodeParameter('campaignSearch', i) as string) || '';
+        options.method = 'GET';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (search) qs.search = search;
+        options.qs = qs;
+      }
+
+      if (resource === 'media' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const mediaType = (this.getNodeParameter('mediaType', i) as string) || '';
+        const search = (this.getNodeParameter('mediaSearch', i) as string) || '';
+        const sort = (this.getNodeParameter('mediaSort', i) as string) || 'recent';
+        options.method = 'GET';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (mediaType) qs.type = mediaType;
+        if (search) qs.search = search;
+        if (sort) qs.sort = sort;
+        options.qs = qs;
+      }
+
+      if (resource === 'media' && operation === 'upload') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
+        const folderId = (this.getNodeParameter('mediaFolderId', i) as string) || '';
+        if (!mediaUrl) throw new Error('Media URL is required');
+        options.method = 'POST';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        options.body = { url: mediaUrl } as any;
+        if (folderId) (options.body as any).folder_id = folderId;
+      }
+
       if (resource === 'teamMember' && operation === 'list') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const page = this.getNodeParameter('page', i) as number;
@@ -515,6 +769,35 @@ export class ContentStudio implements INodeType {
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
+      }
+
+      if (resource === 'comment' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const postId = this.getNodeParameter('commentPostId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        if (!postId) throw new Error('Post ID is required');
+        options.method = 'GET';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        options.qs = { page, per_page: perPage };
+      }
+
+      if (resource === 'comment' && operation === 'create') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const postId = this.getNodeParameter('commentPostId', i) as string;
+        const commentText = this.getNodeParameter('commentText', i) as string;
+        const isNote = this.getNodeParameter('commentIsNote', i, false) as boolean;
+        const mentionedUsersRaw = (this.getNodeParameter('commentMentionedUsers', i) as string) || '';
+        if (!postId) throw new Error('Post ID is required');
+        if (!commentText) throw new Error('Comment text is required');
+        options.method = 'POST';
+        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        const body: any = { comment: commentText };
+        if (isNote) body.is_note = true;
+        if (mentionedUsersRaw.trim()) {
+          body.mentioned_users = mentionedUsersRaw.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        options.body = body;
       }
 
       if (resource === 'post' && operation === 'list') {
@@ -669,8 +952,8 @@ export class ContentStudio implements INodeType {
         // Add approval if enabled
         const sendForApproval = this.getNodeParameter('sendForApproval', i, false) as boolean;
         if (sendForApproval) {
-          const approversRaw = (this.getNodeParameter('approvers', i) as string) || '';
-          const approvers = approversRaw.split(',').map(s => s.trim()).filter(Boolean);
+          const approversParam = this.getNodeParameter('approvers', i, '') as unknown;
+          const approvers = parseCommaSeparated(approversParam);
           if (approvers.length === 0) {
             throw new Error('At least one Approver ID is required when Send for Approval is enabled');
           }
@@ -684,6 +967,20 @@ export class ContentStudio implements INodeType {
           if (approvalNotes) {
             (options.body as any).approval.notes = approvalNotes;
           }
+        }
+
+        // Labels (handles string, array, JSON string from n8n expressions)
+        const labelsParam = this.getNodeParameter('labels', i, '') as unknown;
+        const labels = parseCommaSeparated(labelsParam);
+        if (labels.length > 0) {
+          (options.body as any).labels = labels;
+        }
+
+        // Campaign
+        const campaignParam = this.getNodeParameter('campaignId', i, '') as unknown;
+        const campaignId = Array.isArray(campaignParam) ? String(campaignParam[0] || '') : String(campaignParam || '');
+        if (campaignId.trim()) {
+          (options.body as any).campaign_id = campaignId.trim();
         }
       }
 

@@ -39,6 +39,35 @@ export function parseMaybeObject(val: string): any {
   return t;
 }
 
+// Parse comma-separated IDs from string, array, or JSON string.
+// Handles: "id1,id2", ["id1","id2"], '["id1","id2"]', single "id1", number, etc.
+export function parseCommaSeparated(val: unknown): string[] {
+  if (Array.isArray(val)) {
+    return val.map(v => String(v).trim()).filter(Boolean);
+  }
+  if (typeof val === 'number') {
+    return [String(val)];
+  }
+  if (typeof val === 'string') {
+    const t = val.trim();
+    if (!t) return [];
+    // Try JSON array parse first (e.g. '["id1","id2"]')
+    if (t.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) {
+          return parsed.map(v => String(v).trim()).filter(Boolean);
+        }
+      } catch { /* fall through to comma split */ }
+    }
+    return t.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (val != null) {
+    return [String(val)].filter(Boolean);
+  }
+  return [];
+}
+
 // Media images parser supporting new fixedCollection format and legacy string JSON
 export function parseMediaImages(val: unknown): string[] {
   if (val && typeof val === 'object' && 'images' in (val as any)) {
