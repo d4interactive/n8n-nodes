@@ -1,7 +1,177 @@
-import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+
+type ThreadItemPayload = {
+  message: string;
+  image?: string[];
+  media?: string[];
+  video?: string;
+};
+
+function createThreadOptionsSection(
+  enableName: string,
+  displayName: string,
+  optionsName: string,
+  collectionName: string,
+  useMediaList = false,
+): INodeProperties[] {
+  return [
+    {
+      displayName: `Enable ${displayName}`,
+      name: enableName,
+      type: 'boolean',
+      default: false,
+      description: `Whether to include ${displayName.toLowerCase()} in the post.`,
+      displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+    },
+    {
+      displayName,
+      name: optionsName,
+      type: 'fixedCollection',
+      placeholder: 'Add Thread Item',
+      default: {
+        [collectionName]: [
+          {
+            message: '',
+            ...(useMediaList ? { media: {} } : { image: {}, video: {} }),
+          },
+        ],
+      },
+      typeOptions: {
+        multipleValues: true,
+      },
+      options: [
+        {
+          name: collectionName,
+          displayName: 'Thread Item',
+          values: [
+            {
+              displayName: 'Message',
+              name: 'message',
+              type: 'string',
+              default: '',
+              description: 'Thread message text',
+            },
+            {
+              displayName: useMediaList ? 'Media' : 'Image',
+              name: useMediaList ? 'media' : 'image',
+              type: 'fixedCollection',
+              placeholder: useMediaList ? 'Add Media URL' : 'Add Image URL',
+              default: {},
+              typeOptions: {
+                multipleValues: true,
+              },
+              options: [
+                {
+                  name: useMediaList ? 'media' : 'images',
+                  displayName: useMediaList ? 'Media' : 'Images',
+                  values: [
+                    {
+                      displayName: useMediaList ? 'Media URL' : 'Image URL',
+                      name: 'url',
+                      type: 'string',
+                      default: '',
+                      placeholder: useMediaList ? 'https://example.com/media.jpg' : 'https://example.com/image.jpg',
+                      description: useMediaList ? 'URL of the media to include in this thread item' : 'URL of the image to include in this thread item',
+                    },
+                  ],
+                },
+              ],
+            },
+            ...((useMediaList ? [] : [
+              {
+                displayName: 'Video',
+                name: 'video',
+                type: 'fixedCollection',
+                placeholder: 'Add Video URL',
+                default: {},
+                typeOptions: {
+                  multipleValues: false,
+                },
+                options: [
+                  {
+                    name: 'video',
+                    displayName: 'Video',
+                    values: [
+                      {
+                        displayName: 'Video URL',
+                        name: 'url',
+                        type: 'string',
+                        default: '',
+                        placeholder: 'https://example.com/video.mp4',
+                        description: 'URL of the video to include in this thread item',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ]) as INodeProperties[]),
+          ],
+        },
+      ],
+      displayOptions: { show: { resource: ['post'], operation: ['create'], [enableName]: [true] } },
+    },
+  ];
+}
+
+function parseThreadOptions(value: unknown, collectionName: string): ThreadItemPayload[] {
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const items = (value as Record<string, unknown>)[collectionName];
+
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const parsedItems: ThreadItemPayload[] = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const threadItem = item as Record<string, unknown>;
+    const message = typeof threadItem.message === 'string' ? threadItem.message.trim() : '';
+    const media = parseThreadMediaList(threadItem);
+
+    if (media.length > 0) {
+      parsedItems.push({ message, media });
+      continue;
+    }
+
+    const video = parseMediaVideo(threadItem.video);
+    parsedItems.push({
+      message,
+      image: parseMediaImages(threadItem.image),
+      ...(video ? { video } : {}),
+    });
+  }
+
+  return parsedItems;
+}
+
+function parseThreadMediaList(threadItem: Record<string, unknown>): string[] {
+  const media = threadItem.media;
+
+  if (media && typeof media === 'object' && 'media' in (media as any)) {
+    const values = (media as any).media;
+    if (Array.isArray(values)) {
+      return values.map((item: any) => item?.url).filter(Boolean);
+    }
+  }
+
+  const legacyImages = parseMediaImages(threadItem.image);
+  const legacyVideo = parseMediaVideo(threadItem.video);
+  const legacyMediaIds = Array.isArray(threadItem.media_ids)
+    ? threadItem.media_ids.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim())
+    : [];
+
+  return [...legacyImages, ...legacyMediaIds, ...(legacyVideo ? [legacyVideo] : [])];
+}
 
 export class ContentStudio implements INodeType {
   description: INodeTypeDescription = {
@@ -515,6 +685,8 @@ export class ContentStudio implements INodeType {
         ],
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
+      ...createThreadOptionsSection('hasTwitterOptions', 'Twitter Options', 'twitterOptions', 'threadedTweets', true),
+      ...createThreadOptionsSection('hasThreadsOptions', 'Threads Options', 'threadsOptions', 'multiThreads', true),
       {
         displayName: 'Publish Type',
         name: 'publishType',
@@ -886,6 +1058,12 @@ export class ContentStudio implements INodeType {
         const mediaImages = parseMediaImages(mediaImagesParam);
         const mediaVideo = parseMediaVideo(mediaVideoParam);
         const accounts = parseAccounts(accountsParam);
+        const hasTwitterOptions = this.getNodeParameter('hasTwitterOptions', i, false) as boolean;
+        const hasThreadsOptions = this.getNodeParameter('hasThreadsOptions', i, false) as boolean;
+        const twitterOptionsParam = this.getNodeParameter('twitterOptions', i, {}) as unknown;
+        const threadsOptionsParam = this.getNodeParameter('threadsOptions', i, {}) as unknown;
+        const twitterThreadItems = hasTwitterOptions ? parseThreadOptions(twitterOptionsParam, 'threadedTweets') : [];
+        const threadsThreadItems = hasThreadsOptions ? parseThreadOptions(threadsOptionsParam, 'multiThreads') : [];
 
         // Validate: either accounts or content_category_id must be provided
         if (accounts.length === 0 && !contentCategoryId) {
@@ -935,6 +1113,23 @@ export class ContentStudio implements INodeType {
             scheduled_at: scheduledAt,
           },
         };
+
+        if (hasTwitterOptions) {
+          (options.body as any).twitter_options = {
+            has_threaded_tweets: true,
+            threaded_tweets: twitterThreadItems,
+          };
+        }
+
+        if (hasThreadsOptions) {
+          (options.body as any).threads_options = {
+            has_multi_threads: true,
+            multi_threads: threadsThreadItems.map((threadItem) => ({
+              message: threadItem.message,
+              media: threadItem.media ?? [],
+            })),
+          };
+        }
 
         // Add content_category_id when publish type is content_category
         if (publishType === 'content_category' && contentCategoryId) {
