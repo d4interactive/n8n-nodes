@@ -185,6 +185,44 @@ export async function getContentCategories(this: ILoadOptionsFunctions): Promise
   }
 }
 
+export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const credentials = await this.getCredentials('contentStudioApi');
+    const baseRoot = normalizeBase(BASE_URL);
+    const apiKey = credentials.apiKey as string;
+    const options: any = {
+      method: 'GET',
+      uri: `${baseRoot}/v1/facebook/text-backgrounds`,
+      json: true,
+      headers: { accept: 'application/json', 'X-API-Key': apiKey },
+      timeout: 60000,
+    };
+    const res: any = await this.helpers.request!(options);
+    const list: any[] = res?.data || [];
+
+    const out: INodePropertyOptions[] = [];
+
+    for (const p of list) {
+      const id = p?.id;
+      if (!id) continue;
+      const desc = p?.description || String(id);
+      const type = p?.type || '';
+      const bg = p?.background_color || '';
+      // Label: "Solid purple — rgb(198, 0, 255)" (solid/gradient) or "Pink tropical plants (image)" (image)
+      const label = type === 'image'
+        ? `${desc} (image)`
+        : (bg ? `${desc} — ${bg}` : desc);
+      const hoverParts = [type, p?.category].filter(Boolean).join(' · ');
+      out.push({ name: label, value: String(id), description: hoverParts });
+    }
+
+    return out;
+  } catch (error) {
+    const msg = (error as any)?.message || String(error);
+    throw new Error(`Failed to load Facebook Text Backgrounds: ${msg}`);
+  }
+}
+
 export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const credentials = await this.getCredentials('contentStudioApi');

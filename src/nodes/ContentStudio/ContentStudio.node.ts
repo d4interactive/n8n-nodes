@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers } from './loadOptions';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
@@ -688,6 +688,24 @@ export class ContentStudio implements INodeType {
       ...createThreadOptionsSection('hasTwitterOptions', 'Twitter Options', 'twitterOptions', 'threadedTweets', true),
       ...createThreadOptionsSection('hasThreadsOptions', 'Threads Options', 'threadsOptions', 'multiThreads', true),
       {
+        displayName: 'Enable Facebook Options',
+        name: 'hasFacebookBackground',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to add Facebook-specific options (e.g. a colored/gradient/image background for a plain-text Facebook post). Only applies to Facebook accounts on text-only posts.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Facebook Text-Post Background',
+        name: 'facebookBackgroundId',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getFacebookBackgrounds' },
+        default: '',
+        required: false,
+        description: 'Pick a background preset. The backend rejects the post if images or video are attached.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
+      },
+      {
         displayName: 'Publish Type',
         name: 'publishType',
         type: 'options',
@@ -817,6 +835,7 @@ export class ContentStudio implements INodeType {
       getFirstCommentAccounts,
       getContentCategories,
       getTeamMembers,
+      getFacebookBackgrounds,
     },
   };
 
@@ -1129,6 +1148,17 @@ export class ContentStudio implements INodeType {
               media: threadItem.media ?? [],
             })),
           };
+        }
+
+        // Facebook text-post colored background (Facebook plain text posts only)
+        const hasFacebookBackground = this.getNodeParameter('hasFacebookBackground', i, false) as boolean;
+        if (hasFacebookBackground) {
+          const facebookBackgroundId = (this.getNodeParameter('facebookBackgroundId', i, '') as string) || '';
+          if (facebookBackgroundId.trim()) {
+            (options.body as any).facebook_options = {
+              facebook_background_id: facebookBackgroundId.trim(),
+            };
+          }
         }
 
         // Add content_category_id when publish type is content_category
