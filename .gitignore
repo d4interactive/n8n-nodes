@@ -3,6 +3,7 @@ dist/
 *.js
 *.js.map
 *.d.ts
+!scripts/**/*.js
 
 # Dependencies
 node_modules/

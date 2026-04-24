@@ -1,7 +1,10 @@
-import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+
+const CREDENTIALS_TYPE = 'contentStudioApi';
 
 type ThreadItemPayload = {
   message: string;
@@ -181,9 +184,10 @@ export class ContentStudio implements INodeType {
     version: [4, 5],
     description: 'Integrate with ContentStudio API',
     defaults: { name: 'ContentStudio' },
-    iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
-    inputs: ['main'] as any,
-    outputs: ['main'] as any,
+    icon: 'file:contentstudio.png',
+    subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
     credentials: [{ name: 'contentStudioApi', required: true }],
     properties: [
       // Resource selector
@@ -194,15 +198,15 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         options: [
           { name: 'Auth', value: 'auth' },
-          { name: 'Workspace', value: 'workspace' },
-          { name: 'Social Account', value: 'socialAccount' },
+          { name: 'Campaign', value: 'campaign' },
+          { name: 'Comment', value: 'comment' },
           { name: 'Content Category', value: 'contentCategory' },
           { name: 'Label', value: 'label' },
-          { name: 'Campaign', value: 'campaign' },
           { name: 'Media', value: 'media' },
-          { name: 'Team Member', value: 'teamMember' },
           { name: 'Post', value: 'post' },
-          { name: 'Comment', value: 'comment' },
+          { name: 'Social Account', value: 'socialAccount' },
+          { name: 'Team Member', value: 'teamMember' },
+          { name: 'Workspace', value: 'workspace' },
         ],
         default: 'auth',
         required: true,
@@ -736,7 +740,7 @@ export class ContentStudio implements INodeType {
         default: '',
         placeholder: '2025-10-11 11:15:00',
         description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
-        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+        displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['scheduled'] } },
       },
       {
         displayName: 'Enable First Comment',
@@ -844,38 +848,34 @@ export class ContentStudio implements INodeType {
     const returnData: INodeExecutionData[] = [];
 
     for (let i = 0; i < items.length; i++) {
+      try {
       const resource = this.getNodeParameter('resource', i) as string;
       const operation = this.getNodeParameter('operation', i) as string;
 
-      const credentials = await this.getCredentials('contentStudioApi');
       const baseRoot = normalizeBase(BASE_URL);
-      const apiKey = credentials.apiKey as string;
 
       // Base request options
-      const options: any = {
+      const options: IHttpRequestOptions = {
         method: 'GET',
-        uri: '',
+        url: '',
         qs: {},
         body: {},
         json: true,
-        headers: {
-          accept: 'application/json',
-          'X-API-Key': apiKey,
-        },
+        headers: { accept: 'application/json' },
         timeout: 60000,
       };
 
       // Routes
       if (resource === 'auth' && operation === 'validateKey') {
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/me`;
+        options.url = `https://${baseRoot}/v1/me`;
       }
 
       if (resource === 'workspace' && operation === 'list') {
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces`;
+        options.url = `https://${baseRoot}/v1/workspaces`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -885,7 +885,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const platform = (this.getNodeParameter('platform', i) as string) || undefined;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
         options.qs = { page, per_page: perPage } as any;
         if (platform) (options.qs as any).platform = platform;
       }
@@ -895,7 +895,7 @@ export class ContentStudio implements INodeType {
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
         options.method = 'GET';
-        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/content-categories`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -905,7 +905,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('labelSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/labels`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/labels`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -917,7 +917,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('campaignSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -931,7 +931,7 @@ export class ContentStudio implements INodeType {
         const search = (this.getNodeParameter('mediaSearch', i) as string) || '';
         const sort = (this.getNodeParameter('mediaSort', i) as string) || 'recent';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/media`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (mediaType) qs.type = mediaType;
         if (search) qs.search = search;
@@ -945,7 +945,7 @@ export class ContentStudio implements INodeType {
         const folderId = (this.getNodeParameter('mediaFolderId', i) as string) || '';
         if (!mediaUrl) throw new Error('Media URL is required');
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/media`;
         options.body = { url: mediaUrl } as any;
         if (folderId) (options.body as any).folder_id = folderId;
       }
@@ -956,7 +956,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('teamSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -969,7 +969,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         if (!postId) throw new Error('Post ID is required');
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -982,7 +982,7 @@ export class ContentStudio implements INodeType {
         if (!postId) throw new Error('Post ID is required');
         if (!commentText) throw new Error('Comment text is required');
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         const body: any = { comment: commentText };
         if (isNote) body.is_note = true;
         if (mentionedUsersRaw.trim()) {
@@ -1021,7 +1021,7 @@ export class ContentStudio implements INodeType {
         }
 
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
       }
 
       if (resource === 'post' && operation === 'create') {
@@ -1117,7 +1117,7 @@ export class ContentStudio implements INodeType {
         }
 
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts`;
         options.body = {
           content: {
             text: contentText,
@@ -1213,7 +1213,7 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const postId = this.getNodeParameter('postId', i) as string;
         options.method = 'DELETE';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
       }
 
       if (resource === 'post' && operation === 'approve') {
@@ -1226,34 +1226,30 @@ export class ContentStudio implements INodeType {
         if (!approvalAction) throw new Error('Action is required (approve or reject)');
 
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
-        options.body = { action: approvalAction };
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
+        const approvalBody: Record<string, unknown> = { action: approvalAction };
         if (comment) {
-          options.body.comment = comment;
+          approvalBody.comment = comment;
         }
+        options.body = approvalBody;
       }
 
-      try {
-        const response = await this.helpers.request!(options);
-        returnData.push({ json: response });
+      const response = await this.helpers.httpRequestWithAuthentication.call(
+        this,
+        CREDENTIALS_TYPE,
+        options,
+      );
+      returnData.push({ json: response, pairedItem: { item: i } });
       } catch (error) {
-        const errAny = error as any;
-        let errorMessage = '';
-        // Try to extract backend error message from response body
-        if (errAny?.response?.body) {
-          try {
-            const body = typeof errAny.response.body === 'string'
-              ? JSON.parse(errAny.response.body)
-              : errAny.response.body;
-            errorMessage = body?.message || '';
-          } catch (_e) {
-            errorMessage = String(errAny.response.body);
-          }
+        if (this.continueOnFail()) {
+          const message = (error as any)?.message || String(error);
+          returnData.push({ json: { error: message }, pairedItem: { item: i } });
+          continue;
         }
-        if (!errorMessage) {
-          errorMessage = errAny?.message || String(error);
+        if (error instanceof NodeApiError) {
+          throw error;
         }
-        throw new Error(`${resource}.${operation} failed: ${errorMessage}`);
+        throw new NodeApiError(this.getNode(), error as any, { itemIndex: i });
       }
     }
 

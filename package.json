@@ -33,7 +33,7 @@
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
     "watch": "tsc -p tsconfig.json -w",
     "prepublishOnly": "npm run build",
     "lint": "echo 'Linting not configured'",

@@ -1,21 +1,26 @@
-import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import type { IHttpRequestOptions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { normalizeBase } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
+const CREDENTIALS_TYPE = 'contentStudioApi';
+
+async function apiRequest(this: ILoadOptionsFunctions, options: IHttpRequestOptions): Promise<any> {
+  return this.helpers.httpRequestWithAuthentication.call(this, CREDENTIALS_TYPE, {
+    headers: { accept: 'application/json' },
+    json: true,
+    timeout: 60000,
+    ...options,
+  });
+}
+
 export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces`,
+      url: `https://${baseRoot}/v1/workspaces`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     const list: any[] = res?.data || [];
     const out = list
       .map((w: any) => {
@@ -34,20 +39,14 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
 
 export async function getPosts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces/${workspaceId}/posts`,
+      url: `https://${baseRoot}/v1/workspaces/${workspaceId}/posts`,
       qs: { page: 1, per_page: 50 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     const list: any[] = res?.data || [];
     const out = list
       .map((p: any) => {
@@ -68,20 +67,14 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
 
 export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+      url: `https://${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     const list: any[] = res?.data || [];
     const out = list
       .map((a: any) => {
@@ -104,13 +97,10 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
 
 export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
 
-    // Get selected main accounts to filter
     let selectedAccounts: string[] = [];
     try {
       const accountsParam = this.getCurrentNodeParameter('accounts') as unknown;
@@ -121,18 +111,13 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
       // ignore
     }
 
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+      url: `https://${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
       qs: { page: 1, per_page: 200 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     let list: any[] = res?.data || [];
 
-    // Filter to only selected main accounts if any are selected
     if (selectedAccounts.length > 0) {
       const selectedSet = new Set(selectedAccounts);
       list = list.filter((a: any) => selectedSet.has(a?._id));
@@ -156,20 +141,14 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
 
 export async function getContentCategories(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces/${workspaceId}/content-categories`,
+      url: `https://${baseRoot}/v1/workspaces/${workspaceId}/content-categories`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     const list: any[] = res?.data || [];
     return list
       .map((c: any) => {
@@ -187,17 +166,11 @@ export async function getContentCategories(this: ILoadOptionsFunctions): Promise
 
 export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/facebook/text-backgrounds`,
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+      url: `https://${baseRoot}/v1/facebook/text-backgrounds`,
+    });
     const list: any[] = res?.data || [];
 
     const out: INodePropertyOptions[] = [];
@@ -208,7 +181,6 @@ export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promi
       const desc = p?.description || String(id);
       const type = p?.type || '';
       const bg = p?.background_color || '';
-      // Label: "Solid purple — rgb(198, 0, 255)" (solid/gradient) or "Pink tropical plants (image)" (image)
       const label = type === 'image'
         ? `${desc} (image)`
         : (bg ? `${desc} — ${bg}` : desc);
@@ -225,20 +197,14 @@ export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promi
 
 export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudioApi');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const res: any = await apiRequest.call(this, {
       method: 'GET',
-      uri: `${baseRoot}/v1/workspaces/${workspaceId}/team-members`,
+      url: `https://${baseRoot}/v1/workspaces/${workspaceId}/team-members`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-    const res: any = await this.helpers.request!(options);
+    });
     const list: any[] = res?.data || [];
     return list
       .map((m: any) => {
