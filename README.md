@@ -83,6 +83,29 @@ This node works with ContentStudio API v1 and supports:
 - **Documentation**: [ContentStudio API Docs](https://docs.contentstudio.io/)
 - **n8n Community**: [n8n Community Forum](https://community.n8n.io/)
 
+## Releasing
+
+Publishing to npm is automated via [.github/workflows/publish.yml](.github/workflows/publish.yml) using npm Trusted Publishing (OIDC) — no tokens required.
+
+**The workflow does NOT run on PR merges** (to `main` or any other branch). It runs only when:
+
+1. A tag matching `v*` is pushed — e.g. `v2.0.8`, `v2.1.0`. This is the normal release path.
+2. It is triggered manually from the **Actions** tab on GitHub (workflow_dispatch).
+
+### Release steps
+
+1. Merge your changes into `main` as normal — nothing publishes yet.
+2. Bump `version` in `package.json` and merge that commit.
+3. Tag the commit and push the tag:
+
+   ```bash
+   git tag v2.0.8
+   git push origin v2.0.8
+   ```
+
+4. The tag push triggers the workflow → builds, publishes `contentstudio-n8n-nodes@<version>` to npm with provenance.
+5. Watch progress at: https://github.com/d4interactive/n8n-nodes/actions
+
 ## License
 
 MIT

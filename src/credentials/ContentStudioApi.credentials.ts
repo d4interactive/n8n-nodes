@@ -1,12 +1,19 @@
-import { ICredentialType, INodeProperties } from 'n8n-workflow';
+import {
+  IAuthenticateGeneric,
+  ICredentialTestRequest,
+  ICredentialType,
+  INodeProperties,
+  Icon,
+} from 'n8n-workflow';
 
 const DISPLAY_NAME = 'ContentStudio API';
-export const BASE_URL = 'http://localhost:8000/api';
+export const BASE_URL = 'api.contentstudio.io/api';
 
 export class ContentStudioApi implements ICredentialType {
   name = 'contentStudioApi';
   displayName = DISPLAY_NAME;
-  documentationUrl = 'https://qa-api.contentstudio.io/api-docs';
+  documentationUrl = 'https://api.contentstudio.io/api-docs';
+  icon: Icon = 'file:contentstudio.png';
 
   properties: INodeProperties[] = [
     {
@@ -19,4 +26,22 @@ export class ContentStudioApi implements ICredentialType {
       description: 'Your ContentStudio X-API-Key',
     },
   ];
+
+  authenticate: IAuthenticateGeneric = {
+    type: 'generic',
+    properties: {
+      headers: {
+        'X-API-Key': '={{$credentials.apiKey}}',
+      },
+    },
+  };
+
+  test: ICredentialTestRequest = {
+    request: {
+      baseURL: `https://${BASE_URL}`,
+      url: '/v1/me',
+      method: 'GET',
+      headers: { accept: 'application/json' },
+    },
+  };
 }

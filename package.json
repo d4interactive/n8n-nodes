@@ -1,6 +1,6 @@
 {
   "name": "contentstudio-n8n-nodes",
-  "version": "1.0.0",
+  "version": "2.0.8",
   "description": "n8n node for ContentStudio API (X-API-Key)",
   "keywords": ["n8n-community-node-package", "n8n", "workflow", "contentstudio", "social", "api", "automation"],
   "license": "MIT",
@@ -33,7 +33,7 @@
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
     "watch": "tsc -p tsconfig.json -w",
     "prepublishOnly": "npm run build",
     "lint": "echo 'Linting not configured'",

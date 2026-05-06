@@ -1,7 +1,180 @@
-import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers } from './loadOptions';
+import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
+
+const CREDENTIALS_TYPE = 'contentStudioApi';
+
+type ThreadItemPayload = {
+  message: string;
+  image?: string[];
+  media?: string[];
+  video?: string;
+};
+
+function createThreadOptionsSection(
+  enableName: string,
+  displayName: string,
+  optionsName: string,
+  collectionName: string,
+  useMediaList = false,
+): INodeProperties[] {
+  return [
+    {
+      displayName: `Enable ${displayName}`,
+      name: enableName,
+      type: 'boolean',
+      default: false,
+      description: `Whether to include ${displayName.toLowerCase()} in the post.`,
+      displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+    },
+    {
+      displayName,
+      name: optionsName,
+      type: 'fixedCollection',
+      placeholder: 'Add Thread Item',
+      default: {
+        [collectionName]: [
+          {
+            message: '',
+            ...(useMediaList ? { media: {} } : { image: {}, video: {} }),
+          },
+        ],
+      },
+      typeOptions: {
+        multipleValues: true,
+      },
+      options: [
+        {
+          name: collectionName,
+          displayName: 'Thread Item',
+          values: [
+            {
+              displayName: 'Message',
+              name: 'message',
+              type: 'string',
+              default: '',
+              description: 'Thread message text',
+            },
+            {
+              displayName: useMediaList ? 'Media' : 'Image',
+              name: useMediaList ? 'media' : 'image',
+              type: 'fixedCollection',
+              placeholder: useMediaList ? 'Add Media URL' : 'Add Image URL',
+              default: {},
+              typeOptions: {
+                multipleValues: true,
+              },
+              options: [
+                {
+                  name: useMediaList ? 'media' : 'images',
+                  displayName: useMediaList ? 'Media' : 'Images',
+                  values: [
+                    {
+                      displayName: useMediaList ? 'Media URL' : 'Image URL',
+                      name: 'url',
+                      type: 'string',
+                      default: '',
+                      placeholder: useMediaList ? 'https://example.com/media.jpg' : 'https://example.com/image.jpg',
+                      description: useMediaList ? 'URL of the media to include in this thread item' : 'URL of the image to include in this thread item',
+                    },
+                  ],
+                },
+              ],
+            },
+            ...((useMediaList ? [] : [
+              {
+                displayName: 'Video',
+                name: 'video',
+                type: 'fixedCollection',
+                placeholder: 'Add Video URL',
+                default: {},
+                typeOptions: {
+                  multipleValues: false,
+                },
+                options: [
+                  {
+                    name: 'video',
+                    displayName: 'Video',
+                    values: [
+                      {
+                        displayName: 'Video URL',
+                        name: 'url',
+                        type: 'string',
+                        default: '',
+                        placeholder: 'https://example.com/video.mp4',
+                        description: 'URL of the video to include in this thread item',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ]) as INodeProperties[]),
+          ],
+        },
+      ],
+      displayOptions: { show: { resource: ['post'], operation: ['create'], [enableName]: [true] } },
+    },
+  ];
+}
+
+function parseThreadOptions(value: unknown, collectionName: string): ThreadItemPayload[] {
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const items = (value as Record<string, unknown>)[collectionName];
+
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const parsedItems: ThreadItemPayload[] = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const threadItem = item as Record<string, unknown>;
+    const message = typeof threadItem.message === 'string' ? threadItem.message.trim() : '';
+    const media = parseThreadMediaList(threadItem);
+
+    if (media.length > 0) {
+      parsedItems.push({ message, media });
+      continue;
+    }
+
+    const video = parseMediaVideo(threadItem.video);
+    parsedItems.push({
+      message,
+      image: parseMediaImages(threadItem.image),
+      ...(video ? { video } : {}),
+    });
+  }
+
+  return parsedItems;
+}
+
+function parseThreadMediaList(threadItem: Record<string, unknown>): string[] {
+  const media = threadItem.media;
+
+  if (media && typeof media === 'object' && 'media' in (media as any)) {
+    const values = (media as any).media;
+    if (Array.isArray(values)) {
+      return values.map((item: any) => item?.url).filter(Boolean);
+    }
+  }
+
+  const legacyImages = parseMediaImages(threadItem.image);
+  const legacyVideo = parseMediaVideo(threadItem.video);
+  const legacyMediaIds = Array.isArray(threadItem.media_ids)
+    ? threadItem.media_ids.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim())
+    : [];
+
+  return [...legacyImages, ...legacyMediaIds, ...(legacyVideo ? [legacyVideo] : [])];
+}
 
 export class ContentStudio implements INodeType {
   description: INodeTypeDescription = {
@@ -11,9 +184,10 @@ export class ContentStudio implements INodeType {
     version: [4, 5],
     description: 'Integrate with ContentStudio API',
     defaults: { name: 'ContentStudio' },
-    iconUrl: '//app.contentstudio.io/favicons/favicon.ico',
-    inputs: ['main'] as any,
-    outputs: ['main'] as any,
+    icon: 'file:contentstudio.png',
+    subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
     credentials: [{ name: 'contentStudioApi', required: true }],
     properties: [
       // Resource selector
@@ -24,15 +198,15 @@ export class ContentStudio implements INodeType {
         noDataExpression: true,
         options: [
           { name: 'Auth', value: 'auth' },
-          { name: 'Workspace', value: 'workspace' },
-          { name: 'Social Account', value: 'socialAccount' },
+          { name: 'Campaign', value: 'campaign' },
+          { name: 'Comment', value: 'comment' },
           { name: 'Content Category', value: 'contentCategory' },
           { name: 'Label', value: 'label' },
-          { name: 'Campaign', value: 'campaign' },
           { name: 'Media', value: 'media' },
-          { name: 'Team Member', value: 'teamMember' },
           { name: 'Post', value: 'post' },
-          { name: 'Comment', value: 'comment' },
+          { name: 'Social Account', value: 'socialAccount' },
+          { name: 'Team Member', value: 'teamMember' },
+          { name: 'Workspace', value: 'workspace' },
         ],
         default: 'auth',
         required: true,
@@ -515,6 +689,26 @@ export class ContentStudio implements INodeType {
         ],
         displayOptions: { show: { resource: ['post'], operation: ['create'] } },
       },
+      ...createThreadOptionsSection('hasTwitterOptions', 'Twitter Options', 'twitterOptions', 'threadedTweets', true),
+      ...createThreadOptionsSection('hasThreadsOptions', 'Threads Options', 'threadsOptions', 'multiThreads', true),
+      {
+        displayName: 'Enable Facebook Options',
+        name: 'hasFacebookBackground',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to add Facebook-specific options (e.g. a colored/gradient/image background for a plain-text Facebook post). Only applies to Facebook accounts on text-only posts.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Facebook Text-Post Background',
+        name: 'facebookBackgroundId',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getFacebookBackgrounds' },
+        default: '',
+        required: false,
+        description: 'Pick a background preset. The backend rejects the post if images or video are attached.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
+      },
       {
         displayName: 'Publish Type',
         name: 'publishType',
@@ -546,7 +740,7 @@ export class ContentStudio implements INodeType {
         default: '',
         placeholder: '2025-10-11 11:15:00',
         description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
-        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+        displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['scheduled'] } },
       },
       {
         displayName: 'Enable First Comment',
@@ -645,6 +839,7 @@ export class ContentStudio implements INodeType {
       getFirstCommentAccounts,
       getContentCategories,
       getTeamMembers,
+      getFacebookBackgrounds,
     },
   };
 
@@ -653,38 +848,34 @@ export class ContentStudio implements INodeType {
     const returnData: INodeExecutionData[] = [];
 
     for (let i = 0; i < items.length; i++) {
+      try {
       const resource = this.getNodeParameter('resource', i) as string;
       const operation = this.getNodeParameter('operation', i) as string;
 
-      const credentials = await this.getCredentials('contentStudioApi');
       const baseRoot = normalizeBase(BASE_URL);
-      const apiKey = credentials.apiKey as string;
 
       // Base request options
-      const options: any = {
+      const options: IHttpRequestOptions = {
         method: 'GET',
-        uri: '',
+        url: '',
         qs: {},
         body: {},
         json: true,
-        headers: {
-          accept: 'application/json',
-          'X-API-Key': apiKey,
-        },
+        headers: { accept: 'application/json' },
         timeout: 60000,
       };
 
       // Routes
       if (resource === 'auth' && operation === 'validateKey') {
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/me`;
+        options.url = `https://${baseRoot}/v1/me`;
       }
 
       if (resource === 'workspace' && operation === 'list') {
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces`;
+        options.url = `https://${baseRoot}/v1/workspaces`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -694,7 +885,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const platform = (this.getNodeParameter('platform', i) as string) || undefined;
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
         options.qs = { page, per_page: perPage } as any;
         if (platform) (options.qs as any).platform = platform;
       }
@@ -704,7 +895,7 @@ export class ContentStudio implements INodeType {
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
         options.method = 'GET';
-        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/content-categories`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -714,7 +905,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('labelSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/labels`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/labels`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -726,7 +917,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('campaignSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -740,7 +931,7 @@ export class ContentStudio implements INodeType {
         const search = (this.getNodeParameter('mediaSearch', i) as string) || '';
         const sort = (this.getNodeParameter('mediaSort', i) as string) || 'recent';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/media`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (mediaType) qs.type = mediaType;
         if (search) qs.search = search;
@@ -754,7 +945,7 @@ export class ContentStudio implements INodeType {
         const folderId = (this.getNodeParameter('mediaFolderId', i) as string) || '';
         if (!mediaUrl) throw new Error('Media URL is required');
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/media`;
         options.body = { url: mediaUrl } as any;
         if (folderId) (options.body as any).folder_id = folderId;
       }
@@ -765,7 +956,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         const search = (this.getNodeParameter('teamSearch', i) as string) || '';
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
         const qs: Record<string, any> = { page, per_page: perPage };
         if (search) qs.search = search;
         options.qs = qs;
@@ -778,7 +969,7 @@ export class ContentStudio implements INodeType {
         const perPage = this.getNodeParameter('perPage', i) as number;
         if (!postId) throw new Error('Post ID is required');
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         options.qs = { page, per_page: perPage };
       }
 
@@ -791,7 +982,7 @@ export class ContentStudio implements INodeType {
         if (!postId) throw new Error('Post ID is required');
         if (!commentText) throw new Error('Comment text is required');
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         const body: any = { comment: commentText };
         if (isNote) body.is_note = true;
         if (mentionedUsersRaw.trim()) {
@@ -830,7 +1021,7 @@ export class ContentStudio implements INodeType {
         }
 
         options.method = 'GET';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
       }
 
       if (resource === 'post' && operation === 'create') {
@@ -886,6 +1077,12 @@ export class ContentStudio implements INodeType {
         const mediaImages = parseMediaImages(mediaImagesParam);
         const mediaVideo = parseMediaVideo(mediaVideoParam);
         const accounts = parseAccounts(accountsParam);
+        const hasTwitterOptions = this.getNodeParameter('hasTwitterOptions', i, false) as boolean;
+        const hasThreadsOptions = this.getNodeParameter('hasThreadsOptions', i, false) as boolean;
+        const twitterOptionsParam = this.getNodeParameter('twitterOptions', i, {}) as unknown;
+        const threadsOptionsParam = this.getNodeParameter('threadsOptions', i, {}) as unknown;
+        const twitterThreadItems = hasTwitterOptions ? parseThreadOptions(twitterOptionsParam, 'threadedTweets') : [];
+        const threadsThreadItems = hasThreadsOptions ? parseThreadOptions(threadsOptionsParam, 'multiThreads') : [];
 
         // Validate: either accounts or content_category_id must be provided
         if (accounts.length === 0 && !contentCategoryId) {
@@ -920,7 +1117,7 @@ export class ContentStudio implements INodeType {
         }
 
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts`;
         options.body = {
           content: {
             text: contentText,
@@ -935,6 +1132,34 @@ export class ContentStudio implements INodeType {
             scheduled_at: scheduledAt,
           },
         };
+
+        if (hasTwitterOptions) {
+          (options.body as any).twitter_options = {
+            has_threaded_tweets: true,
+            threaded_tweets: twitterThreadItems,
+          };
+        }
+
+        if (hasThreadsOptions) {
+          (options.body as any).threads_options = {
+            has_multi_threads: true,
+            multi_threads: threadsThreadItems.map((threadItem) => ({
+              message: threadItem.message,
+              media: threadItem.media ?? [],
+            })),
+          };
+        }
+
+        // Facebook text-post colored background (Facebook plain text posts only)
+        const hasFacebookBackground = this.getNodeParameter('hasFacebookBackground', i, false) as boolean;
+        if (hasFacebookBackground) {
+          const facebookBackgroundId = (this.getNodeParameter('facebookBackgroundId', i, '') as string) || '';
+          if (facebookBackgroundId.trim()) {
+            (options.body as any).facebook_options = {
+              facebook_background_id: facebookBackgroundId.trim(),
+            };
+          }
+        }
 
         // Add content_category_id when publish type is content_category
         if (publishType === 'content_category' && contentCategoryId) {
@@ -988,7 +1213,7 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const postId = this.getNodeParameter('postId', i) as string;
         options.method = 'DELETE';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
       }
 
       if (resource === 'post' && operation === 'approve') {
@@ -1001,34 +1226,30 @@ export class ContentStudio implements INodeType {
         if (!approvalAction) throw new Error('Action is required (approve or reject)');
 
         options.method = 'POST';
-        options.uri = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
-        options.body = { action: approvalAction };
+        options.url = `https://${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
+        const approvalBody: Record<string, unknown> = { action: approvalAction };
         if (comment) {
-          options.body.comment = comment;
+          approvalBody.comment = comment;
         }
+        options.body = approvalBody;
       }
 
-      try {
-        const response = await this.helpers.request!(options);
-        returnData.push({ json: response });
+      const response = await this.helpers.httpRequestWithAuthentication.call(
+        this,
+        CREDENTIALS_TYPE,
+        options,
+      );
+      returnData.push({ json: response, pairedItem: { item: i } });
       } catch (error) {
-        const errAny = error as any;
-        let errorMessage = '';
-        // Try to extract backend error message from response body
-        if (errAny?.response?.body) {
-          try {
-            const body = typeof errAny.response.body === 'string'
-              ? JSON.parse(errAny.response.body)
-              : errAny.response.body;
-            errorMessage = body?.message || '';
-          } catch (_e) {
-            errorMessage = String(errAny.response.body);
-          }
+        if (this.continueOnFail()) {
+          const message = (error as any)?.message || String(error);
+          returnData.push({ json: { error: message }, pairedItem: { item: i } });
+          continue;
         }
-        if (!errorMessage) {
-          errorMessage = errAny?.message || String(error);
+        if (error instanceof NodeApiError) {
+          throw error;
         }
-        throw new Error(`${resource}.${operation} failed: ${errorMessage}`);
+        throw new NodeApiError(this.getNode(), error as any, { itemIndex: i });
       }
     }
 
