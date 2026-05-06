@@ -1,16 +1,8 @@
 {
-  "name": "n8n-nodes-contentstudio",
-  "version": "2.0.7",
+  "name": "contentstudio-n8n-nodes",
+  "version": "2.0.8",
   "description": "n8n node for ContentStudio API (X-API-Key)",
-  "keywords": [
-    "n8n-community-node-package",
-    "n8n",
-    "workflow",
-    "contentstudio",
-    "social",
-    "api",
-    "automation"
-  ],
+  "keywords": ["n8n-community-node-package", "n8n", "workflow", "contentstudio", "social", "api", "automation"],
   "license": "MIT",
   "author": "D4 Interactive",
   "homepage": "https://github.com/d4interactive/n8n-nodes#readme",
@@ -21,28 +13,29 @@
   "bugs": {
     "url": "https://github.com/d4interactive/n8n-nodes/issues"
   },
-  "main": "dist/nodes/ContentStudio/ContentStudio.node.js",
-  "types": "dist/nodes/ContentStudio/ContentStudio.node.d.ts",
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "icons",
-    "README.md"
+    "icons"
   ],
   "n8n": {
-    "n8nNodesApiVersion": 1,
-    "strict": true,
     "nodes": [
       "dist/nodes/ContentStudio/ContentStudio.node.js"
     ],
     "credentials": [
-      "dist/credentials/ContentStudio.credentials.js"
+      "dist/credentials/ContentStudioApi.credentials.js"
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
     "watch": "tsc -p tsconfig.json -w",
-    "prepublishOnly": "npm run clean && npm run build",
+    "prepublishOnly": "npm run build",
     "lint": "echo 'Linting not configured'",
     "test": "echo 'Tests not configured'"
   },

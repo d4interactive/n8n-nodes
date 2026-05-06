@@ -2,19 +2,17 @@
 
 This package provides n8n community nodes for integrating with ContentStudio API, enabling workflow automation for social media management.
 
-[![npm version](https://badge.fury.io/js/n8n-nodes-contentstudio.svg)](https://badge.fury.io/js/n8n-nodes-contentstudio)
-
 ## Installation
 
 ### In n8n (Recommended)
 1. Go to **Settings** > **Community Nodes**
 2. Click **Install**
-3. Enter package name: `n8n-nodes-contentstudio`
+3. Enter package name: `n8n-nodes-contentstudio-d4interactive`
 4. Click **Install**
 
 ### Via npm
 ```bash
-npm install n8n-nodes-contentstudio
+npm install n8n-nodes-contentstudio-d4interactive
 ```
 
 ## Prerequisites
@@ -28,7 +26,7 @@ npm install n8n-nodes-contentstudio
 This node requires ContentStudio API credentials:
 
 1. **API Key**: Your ContentStudio API key
-2. **Base URL**: Fixed to `https://api-prod.contentstudio.io/api` (no input required)
+2. **Base URL**: Your ContentStudio API base URL (e.g., `https://api.contentstudio.io/api`)
 
 ## Operations
 
@@ -68,6 +66,7 @@ This node requires ContentStudio API credentials:
 
 This node works with ContentStudio API v1 and supports:
 - Multiple API response formats
+- Various entity identifier fields (`id`, `_id`, `uuid`)
 - Robust error handling and fallbacks
 
 ## Example Workflow
@@ -80,22 +79,32 @@ This node works with ContentStudio API v1 and supports:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/d4interactive/n8n-nodes/issues)
+- **Issues**: [GitHub Issues](https://github.com/contentstudio/n8n-nodes-contentstudio/issues)
 - **Documentation**: [ContentStudio API Docs](https://docs.contentstudio.io/)
 - **n8n Community**: [n8n Community Forum](https://community.n8n.io/)
 
-## Development
+## Releasing
 
-### File structure
-```
-credentials/
-  ContentStudio.credentials.ts
-nodes/
-  ContentStudio/
-    ContentStudio.node.ts
-    loadOptions.ts
-    utils.ts
-```
+Publishing to npm is automated via [.github/workflows/publish.yml](.github/workflows/publish.yml) using npm Trusted Publishing (OIDC) — no tokens required.
+
+**The workflow does NOT run on PR merges** (to `main` or any other branch). It runs only when:
+
+1. A tag matching `v*` is pushed — e.g. `v2.0.8`, `v2.1.0`. This is the normal release path.
+2. It is triggered manually from the **Actions** tab on GitHub (workflow_dispatch).
+
+### Release steps
+
+1. Merge your changes into `main` as normal — nothing publishes yet.
+2. Bump `version` in `package.json` and merge that commit.
+3. Tag the commit and push the tag:
+
+   ```bash
+   git tag v2.0.8
+   git push origin v2.0.8
+   ```
+
+4. The tag push triggers the workflow → builds, publishes `contentstudio-n8n-nodes@<version>` to npm with provenance.
+5. Watch progress at: https://github.com/d4interactive/n8n-nodes/actions
 
 ## License
 

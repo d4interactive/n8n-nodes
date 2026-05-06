@@ -3,6 +3,7 @@
 *.js
 *.js.map
 *.d.ts
+!scripts/**/*.js
 
 # Keep compiled dist folder for n8n
 !dist/
