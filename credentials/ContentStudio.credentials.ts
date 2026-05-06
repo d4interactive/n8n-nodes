@@ -2,6 +2,7 @@ import type {
     ICredentialDataDecryptedObject,
     ICredentialTestRequest,
     ICredentialType,
+    Icon,
     IHttpRequestOptions,
     INodeProperties,
 } from 'n8n-workflow';
@@ -13,6 +14,7 @@ export class ContentStudio implements ICredentialType {
   name = 'contentStudio';
   displayName = DISPLAY_NAME;
   documentationUrl = 'https://api.contentstudio.io/guide';
+  icon: Icon = 'file:contentstudio.png';
 
   properties: INodeProperties[] = [
     {

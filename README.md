@@ -23,10 +23,11 @@ npm install n8n-nodes-contentstudio-d4interactive
 
 ## Credentials
 
-This node requires ContentStudio API credentials:
+This node requires a ContentStudio API key:
 
-1. **API Key**: Your ContentStudio API key
-2. **Base URL**: Your ContentStudio API base URL (e.g., `https://api.contentstudio.io/api`)
+1. **API Key**: Your ContentStudio X-API-Key
+
+The API base URL is built into the node, so users only need to provide their API key.
 
 ## Operations
 

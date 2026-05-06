@@ -4,6 +4,7 @@ exports.normalizeBase = normalizeBase;
 exports.parseArray = parseArray;
 exports.parseAccounts = parseAccounts;
 exports.parseMaybeObject = parseMaybeObject;
+exports.parseCommaSeparated = parseCommaSeparated;
 exports.parseMediaImages = parseMediaImages;
 exports.parseMediaVideo = parseMediaVideo;
 // Normalize base URL by removing trailing slash and optional /v1 suffix
@@ -47,6 +48,36 @@ function parseMaybeObject(val) {
         catch { /* fallthrough */ }
     }
     return t;
+}
+// Parse comma-separated IDs from string, array, or JSON string.
+// Handles: "id1,id2", ["id1","id2"], '["id1","id2"]', single "id1", number, etc.
+function parseCommaSeparated(val) {
+    if (Array.isArray(val)) {
+        return val.map(v => String(v).trim()).filter(Boolean);
+    }
+    if (typeof val === 'number') {
+        return [String(val)];
+    }
+    if (typeof val === 'string') {
+        const t = val.trim();
+        if (!t)
+            return [];
+        // Try JSON array parse first (e.g. '["id1","id2"]')
+        if (t.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(t);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(v => String(v).trim()).filter(Boolean);
+                }
+            }
+            catch { /* fall through to comma split */ }
+        }
+        return t.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (val != null) {
+        return [String(val)].filter(Boolean);
+    }
+    return [];
 }
 // Media images parser supporting new fixedCollection format and legacy string JSON
 function parseMediaImages(val) {

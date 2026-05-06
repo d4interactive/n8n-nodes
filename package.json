@@ -29,7 +29,7 @@
       "dist/nodes/ContentStudio/ContentStudio.node.js"
     ],
     "credentials": [
-      "dist/credentials/ContentStudioApi.credentials.js"
+      "dist/credentials/ContentStudio.credentials.js"
     ]
   },
   "scripts": {
