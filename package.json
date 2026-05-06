@@ -1,5 +1,5 @@
 {
-  "name": "contentstudio-n8n-nodes",
+  "name": "n8n-nodes-contentstudio",
   "version": "2.0.8",
   "description": "n8n node for ContentStudio API (X-API-Key)",
   "keywords": ["n8n-community-node-package", "n8n", "workflow", "contentstudio", "social", "api", "automation"],

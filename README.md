@@ -7,12 +7,12 @@ This package provides n8n community nodes for integrating with ContentStudio API
 ### In n8n (Recommended)
 1. Go to **Settings** > **Community Nodes**
 2. Click **Install**
-3. Enter package name: `n8n-nodes-contentstudio-d4interactive`
+3. Enter package name: `n8n-nodes-contentstudio`
 4. Click **Install**
 
 ### Via npm
 ```bash
-npm install n8n-nodes-contentstudio-d4interactive
+npm install n8n-nodes-contentstudio
 ```
 
 ## Prerequisites
@@ -104,7 +104,7 @@ Publishing to npm is automated via [.github/workflows/publish.yml](.github/workf
    git push origin v2.0.8
    ```
 
-4. The tag push triggers the workflow → builds, publishes `contentstudio-n8n-nodes@<version>` to npm with provenance.
+4. The tag push triggers the workflow → builds, publishes `n8n-nodes-contentstudio@<version>` to npm with provenance.
 5. Watch progress at: https://github.com/d4interactive/n8n-nodes/actions
 
 ## License
