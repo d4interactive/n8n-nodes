@@ -1,6 +1,8 @@
-import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import type { IHttpRequestOptions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { normalizeBase } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudio.credentials';
+
+const CREDENTIALS_TYPE = 'contentStudio';
 
 function safeStringify(value: unknown): string {
   try {
@@ -20,31 +22,27 @@ function extractApiErrorMessage(body: unknown): string {
   return String(body);
 }
 
-function normalizeHttpResponse(res: any): { statusCode?: number; body: any } {
-  // n8n helpers.httpRequest can return either the response body directly (common)
-  // or a full response object (depending on implementation/options).
-  if (res && typeof res === 'object' && 'body' in res && 'statusCode' in res) {
-    return { statusCode: res.statusCode, body: res.body };
-  }
-  return { statusCode: res?.statusCode, body: res };
+function extractHttpErrorDetails(error: any): { statusCode: string | number; apiMessage: string } {
+  const statusCode = error?.statusCode || error?.response?.statusCode || error?.response?.status || 'unknown';
+  const body = error?.response?.body ?? error?.response?.data ?? error?.cause?.response?.data;
+  const apiMessage = extractApiErrorMessage(body) || error?.message || String(error);
+  return { statusCode, apiMessage };
 }
 
-async function httpRequestNormalized(
+async function apiRequest(
   ctx: ILoadOptionsFunctions,
-  options: any,
-): Promise<{ statusCode?: number; body: any }> {
-  return normalizeHttpResponse(await ctx.helpers.httpRequest(options));
+  options: IHttpRequestOptions,
+): Promise<any> {
+  return ctx.helpers.httpRequestWithAuthentication.call(ctx, CREDENTIALS_TYPE, {
+    headers: { accept: 'application/json' },
+    json: true,
+    timeout: 60000,
+    ...options,
+  });
 }
 
 function extractListFromBody(body: any): any[] {
   return Array.isArray(body) ? body : (body?.data || []);
-}
-
-function extractHttpErrorDetails(error: any): { statusCode: string | number; apiMessage: string } {
-  const statusCode = error?.statusCode || error?.response?.statusCode || error?.response?.status || 'unknown';
-  const body = error?.response?.body ?? error?.response?.data;
-  const apiMessage = extractApiErrorMessage(body) || error?.message || String(error);
-  return { statusCode, apiMessage };
 }
 
 function formatAccountOption(a: any): INodePropertyOptions | null {
@@ -78,9 +76,7 @@ function parseSelectedAccountIds(val: unknown): string[] {
 
 export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
 
@@ -89,44 +85,39 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
     if (selectedIds.length === 0) return [];
     const selectedSet = new Set(selectedIds);
 
-    const baseQsAll = { page: 1, per_page: 100 };
-    const baseQsSelected = { page: 1, per_page: Math.min(Math.max(selectedIds.length, 1), 100) };
-    const idsCsv = selectedIds.join(',');
-    const qsWithIds: any = {
-      ...baseQsSelected,
-      ids: idsCsv,
-    };
-
-    const optionsBase: any = {
-      method: 'GET',
-      url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      simple: false,
-      resolveWithFullResponse: true,
-      timeout: 60000,
-    };
-
-    let { statusCode, body } = await httpRequestNormalized(this, { ...optionsBase, qs: qsWithIds });
-    if (statusCode === 400 || statusCode === 404 || statusCode === 422) {
-      ({ statusCode, body } = await httpRequestNormalized(this, { ...optionsBase, qs: baseQsAll }));
-    }
-
-    if (typeof statusCode === 'number' && (statusCode < 200 || statusCode >= 300)) {
-      const apiMessage = extractApiErrorMessage(body);
-      throw new Error(`Failed to load First Comment Accounts: (${statusCode}) ${apiMessage || 'Request failed'}`);
+    const url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+    let body: any;
+    try {
+      body = await apiRequest(this, {
+        method: 'GET',
+        url,
+        qs: {
+          page: 1,
+          per_page: Math.min(Math.max(selectedIds.length, 1), 100),
+          ids: selectedIds.join(','),
+        },
+      });
+    } catch (error: any) {
+      const code = error?.statusCode || error?.response?.statusCode || error?.response?.status;
+      if (code === 400 || code === 404 || code === 422) {
+        body = await apiRequest(this, {
+          method: 'GET',
+          url,
+          qs: { page: 1, per_page: 100 },
+        });
+      } else {
+        throw error;
+      }
     }
 
     const list: any[] = extractListFromBody(body);
-    const out = list
+    return list
       .filter((a: any) => {
         const id = a?._id;
         return id && selectedSet.has(String(id));
       })
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
-
-    return out;
   } catch (error) {
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     throw new Error(`Failed to load First Comment Accounts: (${statusCode}) ${apiMessage}`);
@@ -135,29 +126,14 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
 
 export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
-    const options: any = {
+    const body: any = await apiRequest(this, {
       method: 'GET',
       url: `${baseRoot}/v1/workspaces`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      simple: false,
-      resolveWithFullResponse: true,
-      timeout: 60000,
-    };
-
-    const res: any = await this.helpers.httpRequest(options);
-    const { statusCode, body } = normalizeHttpResponse(res);
-    if (typeof statusCode === 'number' && (statusCode < 200 || statusCode >= 300)) {
-      const apiMessage = extractApiErrorMessage(body);
-      throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage || 'Request failed'}`);
-    }
-
+    });
     const list: any[] = body?.data || [];
-    const out = list
+    return list
       .map((w: any) => {
         const id = w?._id;
         if (!id) return null;
@@ -165,7 +141,6 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
         return { name, value: id } as INodePropertyOptions;
       })
       .filter((o): o is INodePropertyOptions => !!o);
-    return out;
   } catch (error) {
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage}`);
@@ -174,24 +149,16 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
 
 export async function getPosts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
-    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const body: any = await apiRequest(this, {
       method: 'GET',
       url: `${baseRoot}/v1/workspaces/${workspaceId}/posts`,
       qs: { page: 1, per_page: 50 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      timeout: 60000,
-    };
-
-    const res: any = await this.helpers.httpRequest(options);
-
-    const list: any[] = res?.data || [];
-    const out = list
+    });
+    const list: any[] = body?.data || [];
+    return list
       .map((p: any) => {
         const id = p?._id;
         if (!id) return null;
@@ -201,54 +168,112 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
         return { name: label, value: id } as INodePropertyOptions;
       })
       .filter((o): o is INodePropertyOptions => !!o);
-    return out;
   } catch (error) {
-    const msg = (error as any)?.message || String(error);
-    throw new Error(`Failed to load Posts: ${msg}`);
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Posts: (${statusCode}) ${apiMessage}`);
   }
 }
 
 export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   let workspaceId = '';
   try {
-    const credentials = await this.getCredentials('contentStudio');
     const baseRoot = normalizeBase(BASE_URL);
-    const apiKey = credentials.apiKey as string;
     workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
     if (!workspaceId) return [];
-    const options: any = {
+    const body: any = await apiRequest(this, {
       method: 'GET',
       url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
       qs: { page: 1, per_page: 100 },
-      json: true,
-      headers: { accept: 'application/json', 'X-API-Key': apiKey },
-      simple: false,
-      resolveWithFullResponse: true,
-      timeout: 60000,
-    };
-
-    const res: any = await this.helpers.httpRequest(options);
-    const normalized = normalizeHttpResponse(res);
-    const statusCode = normalized.statusCode;
-    const body = normalized.body;
-    if (typeof statusCode === 'number' && (statusCode < 200 || statusCode >= 300)) {
-      const apiMessage = extractApiErrorMessage(body);
-      const hint = statusCode === 403
-        ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
-        : '';
-      throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage || 'Request failed'}${hint}`);
-    }
-
+    });
     const list: any[] = body?.data || [];
-    const out = list
+    return list
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
-    return out;
   } catch (error) {
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
     const hint = statusCode === 403
       ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
       : '';
     throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+  }
+}
+
+export async function getContentCategories(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/content-categories`,
+      qs: { page: 1, per_page: 100 },
+    });
+    const list: any[] = extractListFromBody(body);
+    return list
+      .map((c: any) => {
+        const id = c?._id;
+        if (!id) return null;
+        const name = c?.name || String(id);
+        return { name, value: id } as INodePropertyOptions;
+      })
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Content Categories: (${statusCode}) ${apiMessage}`);
+  }
+}
+
+export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/facebook/text-backgrounds`,
+    });
+    const list: any[] = extractListFromBody(body);
+    const out: INodePropertyOptions[] = [];
+    for (const p of list) {
+      const id = p?.id;
+      if (!id) continue;
+      const desc = p?.description || String(id);
+      const type = p?.type || '';
+      const bg = p?.background_color || '';
+      const label = type === 'image'
+        ? `${desc} (image)`
+        : (bg ? `${desc} — ${bg}` : desc);
+      const hoverParts = [type, p?.category].filter(Boolean).join(' · ');
+      out.push({ name: label, value: String(id), description: hoverParts });
+    }
+    return out;
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Facebook Text Backgrounds: (${statusCode}) ${apiMessage}`);
+  }
+}
+
+export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/team-members`,
+      qs: { page: 1, per_page: 100 },
+    });
+    const list: any[] = extractListFromBody(body);
+    return list
+      .map((m: any) => {
+        const id = m?._id;
+        if (!id) return null;
+        const name = m?.name || m?.email || String(id);
+        const role = m?.role || '';
+        const label = role ? `${name} (${role})` : name;
+        return { name: label, value: id } as INodePropertyOptions;
+      })
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Team Members: (${statusCode}) ${apiMessage}`);
   }
 }

@@ -8,6 +8,7 @@ class ContentStudio {
         this.name = 'contentStudio';
         this.displayName = DISPLAY_NAME;
         this.documentationUrl = 'https://api.contentstudio.io/guide';
+        this.icon = 'file:contentstudio.png';
         this.properties = [
             {
                 displayName: 'API Key',
