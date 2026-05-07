@@ -1,4 +1,4 @@
-import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, ILoadOptionsFunctions, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated } from './utils';

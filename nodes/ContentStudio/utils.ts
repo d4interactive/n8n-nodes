@@ -1,5 +1,3 @@
-import type { ILoadOptionsFunctions } from 'n8n-workflow';
-
 // Normalize base URL by removing trailing slash and optional /v1 suffix
 export function normalizeBase(u: string): string {
   return (u || '').replace(/\/$/, '').replace(/\/v1$/, '');
