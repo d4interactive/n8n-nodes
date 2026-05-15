@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getCarouselAccounts = getCarouselAccounts;
 exports.getFirstCommentAccounts = getFirstCommentAccounts;
 exports.getWorkspaces = getWorkspaces;
 exports.getPosts = getPosts;
@@ -77,6 +78,59 @@ function parseSelectedAccountIds(val) {
         return [t];
     }
     return [];
+}
+async function getCarouselAccounts() {
+    var _a, _b;
+    try {
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
+        if (!workspaceId)
+            return [];
+        const selectedRaw = this.getCurrentNodeParameter('accounts');
+        const selectedIds = Array.from(new Set(parseSelectedAccountIds(selectedRaw)));
+        if (selectedIds.length === 0)
+            return [];
+        const selectedSet = new Set(selectedIds);
+        const url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+        let body;
+        try {
+            body = await apiRequest(this, {
+                method: 'GET',
+                url,
+                qs: {
+                    page: 1,
+                    per_page: Math.min(Math.max(selectedIds.length, 1), 100),
+                    ids: selectedIds.join(','),
+                },
+            });
+        }
+        catch (error) {
+            const code = (error === null || error === void 0 ? void 0 : error.statusCode) || ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.statusCode) || ((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status);
+            if (code === 400 || code === 404 || code === 422) {
+                body = await apiRequest(this, {
+                    method: 'GET',
+                    url,
+                    qs: { page: 1, per_page: 100 },
+                });
+            }
+            else {
+                throw error;
+            }
+        }
+        const list = extractListFromBody(body);
+        return list
+            .filter((a) => {
+            const id = a === null || a === void 0 ? void 0 : a._id;
+            const platform = ((a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '').toLowerCase();
+            return id && selectedSet.has(String(id)) && platform === 'facebook';
+        })
+            .map(formatAccountOption)
+            .filter((o) => !!o);
+    }
+    catch (error) {
+        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+        throw new Error(`Failed to load Carousel Accounts: (${statusCode}) ${apiMessage}`);
+    }
 }
 async function getFirstCommentAccounts() {
     var _a, _b;

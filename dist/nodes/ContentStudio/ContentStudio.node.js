@@ -488,11 +488,24 @@ class ContentStudio {
                 },
                 // Posts list filters
                 {
-                    displayName: 'Statuses (CSV)',
+                    displayName: 'Statuses',
                     name: 'statusesCsv',
-                    type: 'string',
-                    default: '',
-                    description: 'Comma-separated statuses to filter by (e.g. scheduled,published,queued)',
+                    type: 'multiOptions',
+                    default: [],
+                    description: 'Filter posts by their publishing status. Leave empty to return posts with any status.',
+                    options: [
+                        { name: 'Published', value: 'published' },
+                        { name: 'Scheduled', value: 'scheduled' },
+                        { name: 'Draft', value: 'draft' },
+                        { name: 'Failed', value: 'failed' },
+                        { name: 'Partially Failed', value: 'partially_failed' },
+                        { name: 'In Review', value: 'under_review' },
+                        { name: 'Missed Review', value: 'missed_review' },
+                        { name: 'Rejected', value: 'rejected' },
+                        { name: 'In Progress', value: 'in_progress' },
+                        { name: 'Notification Sent', value: 'notification_sent' },
+                        { name: 'Notification Declined', value: 'notification_declined' },
+                    ],
                     displayOptions: {
                         show: { resource: ['post'], operation: ['list'] },
                     },
@@ -533,6 +546,61 @@ class ContentStudio {
                     type: 'string',
                     default: '',
                     description: 'Filter by users who requested approval (comma-separated). Get IDs from the Team Member resource.',
+                    displayOptions: {
+                        show: { resource: ['post'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Labels',
+                    name: 'labelsCsv',
+                    type: 'string',
+                    default: '',
+                    description: 'Filter by label IDs (comma-separated).',
+                    displayOptions: {
+                        show: { resource: ['post'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Campaigns',
+                    name: 'campaignsCsv',
+                    type: 'string',
+                    default: '',
+                    description: 'Filter by campaign IDs (comma-separated).',
+                    displayOptions: {
+                        show: { resource: ['post'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Content Categories',
+                    name: 'contentCategoryCsv',
+                    type: 'string',
+                    default: '',
+                    description: 'Filter by content category IDs (comma-separated).',
+                    displayOptions: {
+                        show: { resource: ['post'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Created By',
+                    name: 'createdByCsv',
+                    type: 'string',
+                    default: '',
+                    description: 'Filter by user IDs who created the posts (comma-separated). Get IDs from the Team Member resource.',
+                    displayOptions: {
+                        show: { resource: ['post'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Comment Status',
+                    name: 'commentStatus',
+                    type: 'options',
+                    options: [
+                        { name: 'All', value: 'all' },
+                        { name: 'Resolved', value: 'resolved' },
+                        { name: 'Unresolved', value: 'unresolved' },
+                    ],
+                    default: 'all',
+                    description: 'Filter posts by comment resolution status. "All" returns all posts regardless of comment state.',
                     displayOptions: {
                         show: { resource: ['post'], operation: ['list'] },
                     },
@@ -671,6 +739,125 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
                 },
                 {
+                    displayName: 'Enable Facebook Carousel',
+                    name: 'hasFacebookCarousel',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to publish as a Facebook multi-card carousel post (2-10 link cards). Requires at least one Facebook account selected above. Carousel is image-only — video is not allowed.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                },
+                {
+                    displayName: 'Carousel Cards',
+                    name: 'carouselCards',
+                    type: 'fixedCollection',
+                    placeholder: 'Add Card',
+                    default: { card: [{ image: '', title: '', description: '', link: '' }, { image: '', title: '', description: '', link: '' }] },
+                    typeOptions: { multipleValues: true, minValue: 2, maxValue: 10 },
+                    description: 'Between 2 and 10 carousel cards. Each card needs an image URL and a destination link.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    options: [
+                        {
+                            name: 'card',
+                            displayName: 'Card',
+                            values: [
+                                { displayName: 'Image URL', name: 'image', type: 'string', default: '', required: true, placeholder: 'https://example.com/card.jpg', description: 'Card image URL. External URLs are uploaded to the media library.' },
+                                { displayName: 'Title', name: 'title', type: 'string', default: '', description: 'Optional card title (max 255 chars).' },
+                                { displayName: 'Description', name: 'description', type: 'string', default: '', description: 'Optional card description (max 1000 chars).' },
+                                { displayName: 'Destination URL', name: 'link', type: 'string', default: '', required: true, placeholder: 'https://example.com/landing', description: 'Destination URL when this card is tapped.' },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    displayName: 'Call To Action Button',
+                    name: 'carouselCallToAction',
+                    type: 'options',
+                    default: 'NO_BUTTON',
+                    description: 'CTA button shown on every card.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    options: [
+                        { name: 'No Button', value: 'NO_BUTTON' },
+                        { name: 'Add To Cart', value: 'ADD_TO_CART' },
+                        { name: 'Apply Now', value: 'APPLY_NOW' },
+                        { name: 'Bet Now', value: 'BET_NOW' },
+                        { name: 'Book Now', value: 'BOOK_TRAVEL' },
+                        { name: 'Buy Now', value: 'BUY_NOW' },
+                        { name: 'Buy Tickets', value: 'BUY_TICKETS' },
+                        { name: 'Call Now', value: 'CALL_NOW' },
+                        { name: 'Contact Us', value: 'CONTACT_US' },
+                        { name: 'Download', value: 'DOWNLOAD' },
+                        { name: 'Get Directions', value: 'GET_DIRECTIONS' },
+                        { name: 'Get Offer', value: 'GET_OFFER' },
+                        { name: 'Get Quote', value: 'GET_QUOTE' },
+                        { name: 'Go Live', value: 'GO_LIVE' },
+                        { name: 'Install Now', value: 'INSTALL_MOBILE_APP' },
+                        { name: 'Learn More', value: 'LEARN_MORE' },
+                        { name: 'Like Page', value: 'LIKE_PAGE' },
+                        { name: 'Listen Now', value: 'LISTEN_MUSIC' },
+                        { name: 'Open Link', value: 'OPEN_LINK' },
+                        { name: 'Order Now', value: 'ORDER_NOW' },
+                        { name: 'Play Game', value: 'PLAY_GAME' },
+                        { name: 'Register Now', value: 'REGISTER_NOW' },
+                        { name: 'Request Time', value: 'REQUEST_TIME' },
+                        { name: 'Save', value: 'SAVE' },
+                        { name: 'Send Message', value: 'MESSAGE_PAGE' },
+                        { name: 'Send Message to WhatsApp', value: 'WHATSAPP_MESSAGE' },
+                        { name: 'Shop Now', value: 'SHOP_NOW' },
+                        { name: 'Sign Up', value: 'SIGN_UP' },
+                        { name: 'Subscribe', value: 'SUBSCRIBE' },
+                        { name: 'Use App', value: 'USE_APP' },
+                        { name: 'Watch More', value: 'WATCH_MORE' },
+                        { name: 'Watch Video', value: 'WATCH_VIDEO' },
+                    ],
+                },
+                {
+                    displayName: 'Include End Card',
+                    name: 'carouselEndCard',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to include the Facebook end card after the last card.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                },
+                {
+                    displayName: 'End Card URL',
+                    name: 'carouselEndCardUrl',
+                    type: 'string',
+                    default: '',
+                    placeholder: 'https://example.com',
+                    description: 'Destination URL for the end card. Falls back to the first card\'s link when omitted.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                },
+                {
+                    displayName: 'Carousel Target Accounts',
+                    name: 'carouselAccounts',
+                    type: 'multiOptions',
+                    typeOptions: { loadOptionsMethod: 'getCarouselAccounts', loadOptionsDependsOn: ['workspaceId', 'accounts'] },
+                    default: [],
+                    description: 'Restrict carousel mode to a subset of your selected Facebook accounts. Leave empty to apply carousel to ALL Facebook accounts in this post. Only Facebook accounts from the selected accounts above are shown.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                },
+                {
+                    displayName: 'Post Type',
+                    name: 'postType',
+                    type: 'options',
+                    default: 'feed',
+                    description: 'Optional post type. Platform-specific. For Facebook carousel posts you may set "Carousel" here, but you must also enable Facebook Carousel above with at least 2 cards.',
+                    options: [
+                        { name: 'Feed', value: 'feed' },
+                        { name: 'Feed + Reel', value: 'feed+reel' },
+                        { name: 'Reel', value: 'reel' },
+                        { name: 'Carousel', value: 'carousel' },
+                        { name: 'Story', value: 'story' },
+                        { name: 'Feed + Story', value: 'feed+story' },
+                        { name: 'Feed + Reel + Story', value: 'feed+reel+story' },
+                        { name: 'Reel + Story', value: 'reel+story' },
+                        { name: 'Carousel + Story', value: 'carousel+story' },
+                        { name: 'Video', value: 'video' },
+                        { name: 'Shorts', value: 'shorts' },
+                    ],
+                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                },
+                {
                     displayName: 'Publish Type',
                     name: 'publishType',
                     type: 'options',
@@ -795,6 +982,7 @@ class ContentStudio {
                 getPosts: loadOptions_1.getPosts,
                 getAccounts: loadOptions_1.getAccounts,
                 getFirstCommentAccounts: loadOptions_1.getFirstCommentAccounts,
+                getCarouselAccounts: loadOptions_1.getCarouselAccounts,
                 getContentCategories: loadOptions_1.getContentCategories,
                 getTeamMembers: loadOptions_1.getTeamMembers,
                 getFacebookBackgrounds: loadOptions_1.getFacebookBackgrounds,
@@ -951,30 +1139,42 @@ class ContentStudio {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
                     const page = this.getNodeParameter('page', i);
                     const perPage = this.getNodeParameter('perPage', i);
-                    const statusesCsv = this.getNodeParameter('statusesCsv', i) || '';
+                    const statusesRaw = this.getNodeParameter('statusesCsv', i, []);
                     const dateFrom = this.getNodeParameter('dateFrom', i) || '';
                     const dateTo = this.getNodeParameter('dateTo', i) || '';
                     const approvalAssignedTo = this.getNodeParameter('approvalAssignedTo', i, '') || '';
                     const approvalRequestedBy = this.getNodeParameter('approvalRequestedBy', i, '') || '';
+                    const labelsCsv = this.getNodeParameter('labelsCsv', i, '') || '';
+                    const campaignsCsv = this.getNodeParameter('campaignsCsv', i, '') || '';
+                    const contentCategoryCsv = this.getNodeParameter('contentCategoryCsv', i, '') || '';
+                    const createdByCsv = this.getNodeParameter('createdByCsv', i, '') || '';
+                    const commentStatus = this.getNodeParameter('commentStatus', i, 'all') || 'all';
                     // Build query string manually to ensure proper array format
                     const qsParts = [`page=${page}`, `per_page=${perPage}`];
-                    const statuses = Array.from(new Set(statusesCsv.split(',').map(s => s.trim()).filter(Boolean)));
-                    statuses.forEach((s) => qsParts.push(`status[]=${encodeURIComponent(s)}`));
+                    const statusesArr = Array.isArray(statusesRaw)
+                        ? statusesRaw
+                        : String(statusesRaw).split(',').map(s => s.trim()).filter(Boolean);
+                    Array.from(new Set(statusesArr)).forEach((s) => qsParts.push(`status[]=${encodeURIComponent(s)}`));
                     if (dateFrom)
                         qsParts.push(`date_from=${encodeURIComponent(dateFrom)}`);
                     if (dateTo)
                         qsParts.push(`date_to=${encodeURIComponent(dateTo)}`);
-                    if (approvalAssignedTo.trim()) {
-                        approvalAssignedTo.split(',')
+                    const appendCsvAsArray = (name, raw) => {
+                        if (!raw.trim())
+                            return;
+                        raw.split(',')
                             .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
                             .filter(Boolean)
-                            .forEach((id) => qsParts.push(`approval_assigned_to[]=${encodeURIComponent(id)}`));
-                    }
-                    if (approvalRequestedBy.trim()) {
-                        approvalRequestedBy.split(',')
-                            .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
-                            .filter(Boolean)
-                            .forEach((id) => qsParts.push(`approval_requested_by[]=${encodeURIComponent(id)}`));
+                            .forEach((id) => qsParts.push(`${name}[]=${encodeURIComponent(id)}`));
+                    };
+                    appendCsvAsArray('approval_assigned_to', approvalAssignedTo);
+                    appendCsvAsArray('approval_requested_by', approvalRequestedBy);
+                    appendCsvAsArray('labels', labelsCsv);
+                    appendCsvAsArray('campaigns', campaignsCsv);
+                    appendCsvAsArray('content_category', contentCategoryCsv);
+                    appendCsvAsArray('created_by', createdByCsv);
+                    if (commentStatus && commentStatus !== 'all') {
+                        qsParts.push(`comment_status=${encodeURIComponent(commentStatus)}`);
                     }
                     options.method = 'GET';
                     options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
@@ -1057,6 +1257,7 @@ class ContentStudio {
                         // Use only valid overlapping accounts
                         firstCommentAccountIds = validCommentAccounts;
                     }
+                    const postType = this.getNodeParameter('postType', i, 'feed') || 'feed';
                     options.method = 'POST';
                     options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
                     options.body = {
@@ -1068,6 +1269,7 @@ class ContentStudio {
                             },
                         },
                         accounts,
+                        post_type: postType,
                         scheduling: {
                             publish_type: publishType,
                             scheduled_at: scheduledAt,
@@ -1100,6 +1302,45 @@ class ContentStudio {
                                 facebook_background_id: facebookBackgroundId.trim(),
                             };
                         }
+                    }
+                    // Facebook carousel post (2-10 link cards on Facebook Pages)
+                    const hasFacebookCarousel = this.getNodeParameter('hasFacebookCarousel', i, false);
+                    if (hasFacebookCarousel) {
+                        const carouselCardsRaw = this.getNodeParameter('carouselCards', i, {});
+                        const rawCards = Array.isArray(carouselCardsRaw === null || carouselCardsRaw === void 0 ? void 0 : carouselCardsRaw.card) ? carouselCardsRaw.card : [];
+                        const cards = rawCards.map((c, idx) => {
+                            var _a, _b, _c, _d;
+                            const image = String((_a = c === null || c === void 0 ? void 0 : c.image) !== null && _a !== void 0 ? _a : '').trim();
+                            const link = String((_b = c === null || c === void 0 ? void 0 : c.link) !== null && _b !== void 0 ? _b : '').trim();
+                            if (!image || !link) {
+                                throw new Error(`Carousel card ${idx + 1} requires both Image URL and Destination URL`);
+                            }
+                            return {
+                                image,
+                                title: String((_c = c === null || c === void 0 ? void 0 : c.title) !== null && _c !== void 0 ? _c : '').trim(),
+                                description: String((_d = c === null || c === void 0 ? void 0 : c.description) !== null && _d !== void 0 ? _d : '').trim(),
+                                link,
+                            };
+                        });
+                        if (cards.length < 2 || cards.length > 10) {
+                            throw new Error(`Facebook carousel requires between 2 and 10 cards (got ${cards.length})`);
+                        }
+                        const carouselAccountsRaw = this.getNodeParameter('carouselAccounts', i, []);
+                        const carouselAccounts = Array.isArray(carouselAccountsRaw)
+                            ? carouselAccountsRaw.map((v) => String(v).trim()).filter(Boolean)
+                            : (0, utils_1.parseCommaSeparated)(carouselAccountsRaw);
+                        const carouselCallToAction = this.getNodeParameter('carouselCallToAction', i, 'NO_BUTTON') || 'NO_BUTTON';
+                        const carouselEndCard = this.getNodeParameter('carouselEndCard', i, false);
+                        const carouselEndCardUrl = this.getNodeParameter('carouselEndCardUrl', i, '').trim();
+                        options.body.facebook_options = options.body.facebook_options || {};
+                        options.body.facebook_options.carousel = {
+                            is_carousel_post: true,
+                            cards,
+                            call_to_action: carouselCallToAction,
+                            end_card: carouselEndCard,
+                            ...(carouselEndCardUrl ? { end_card_url: carouselEndCardUrl } : {}),
+                            ...(carouselAccounts.length ? { accounts: carouselAccounts } : {}),
+                        };
                     }
                     // Add content_category_id when publish type is content_category
                     if (publishType === 'content_category' && contentCategoryId) {
