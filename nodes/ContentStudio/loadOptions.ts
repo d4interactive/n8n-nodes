@@ -74,6 +74,57 @@ function parseSelectedAccountIds(val: unknown): string[] {
   return [];
 }
 
+export async function getCarouselAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+
+    const selectedRaw = this.getCurrentNodeParameter('accounts');
+    const selectedIds = Array.from(new Set(parseSelectedAccountIds(selectedRaw)));
+    if (selectedIds.length === 0) return [];
+    const selectedSet = new Set(selectedIds);
+
+    const url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts`;
+    let body: any;
+    try {
+      body = await apiRequest(this, {
+        method: 'GET',
+        url,
+        qs: {
+          page: 1,
+          per_page: Math.min(Math.max(selectedIds.length, 1), 100),
+          ids: selectedIds.join(','),
+        },
+      });
+    } catch (error: any) {
+      const code = error?.statusCode || error?.response?.statusCode || error?.response?.status;
+      if (code === 400 || code === 404 || code === 422) {
+        body = await apiRequest(this, {
+          method: 'GET',
+          url,
+          qs: { page: 1, per_page: 100 },
+        });
+      } else {
+        throw error;
+      }
+    }
+
+    const list: any[] = extractListFromBody(body);
+    return list
+      .filter((a: any) => {
+        const id = a?._id;
+        const platform = (a?.platform || a?.provider || '').toLowerCase();
+        return id && selectedSet.has(String(id)) && platform === 'facebook';
+      })
+      .map(formatAccountOption)
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Carousel Accounts: (${statusCode}) ${apiMessage}`);
+  }
+}
+
 export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const baseRoot = normalizeBase(BASE_URL);
