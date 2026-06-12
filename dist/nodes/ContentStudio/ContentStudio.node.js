@@ -203,6 +203,9 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['workspace'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List workspaces' },
+                        { name: 'Create', value: 'create', action: 'Create a workspace' },
+                        { name: 'Update', value: 'update', action: 'Update a workspace' },
+                        { name: 'Delete', value: 'delete', action: 'Delete a workspace' },
                     ],
                     default: 'list',
                 },
@@ -236,6 +239,9 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['label'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List Labels' },
+                        { name: 'Create', value: 'create', action: 'Create a label' },
+                        { name: 'Update', value: 'update', action: 'Update a label' },
+                        { name: 'Delete', value: 'delete', action: 'Delete a label' },
                     ],
                     default: 'list',
                 },
@@ -247,6 +253,9 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['campaign'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List Campaigns' },
+                        { name: 'Create', value: 'create', action: 'Create a campaign' },
+                        { name: 'Update', value: 'update', action: 'Update a campaign' },
+                        { name: 'Delete', value: 'delete', action: 'Delete a campaign' },
                     ],
                     default: 'list',
                 },
@@ -270,6 +279,9 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['teamMember'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List Team Members' },
+                        { name: 'Create', value: 'create', action: 'Invite a team member' },
+                        { name: 'Update', value: 'update', action: 'Update a team member' },
+                        { name: 'Delete', value: 'delete', action: 'Remove a team member' },
                     ],
                     default: 'list',
                 },
@@ -334,6 +346,85 @@ class ContentStudio {
                         show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'], operation: ['list'] },
                     },
                 },
+                // Workspace create/update/delete
+                {
+                    displayName: 'Workspace ID',
+                    name: 'workspaceTargetId',
+                    type: 'options',
+                    typeOptions: { loadOptionsMethod: 'getWorkspaces' },
+                    default: '',
+                    required: true,
+                    description: 'The workspace to update or delete',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['update', 'delete'] } },
+                },
+                {
+                    displayName: 'Name',
+                    name: 'wsName',
+                    type: 'string',
+                    default: '',
+                    description: 'Workspace name (max 35 characters). Required when creating.',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'Logo URL',
+                    name: 'wsLogo',
+                    type: 'string',
+                    default: '',
+                    description: 'Workspace logo URL. Required when creating.',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'Timezone',
+                    name: 'wsTimezone',
+                    type: 'string',
+                    default: '',
+                    description: 'IANA timezone, e.g. Asia/Karachi. Required when creating.',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'Super Admin ID',
+                    name: 'wsSuperAdminId',
+                    type: 'string',
+                    default: '',
+                    description: 'Account owner to create the workspace under. Optional when you are the account owner or are linked to exactly one super admin; required when you manage multiple super admins.',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create'] } },
+                },
+                {
+                    displayName: 'Note',
+                    name: 'wsNote',
+                    type: 'string',
+                    default: '',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'Instagram Posting Method',
+                    name: 'wsInstagramPostingMethod',
+                    type: 'options',
+                    options: [
+                        { name: '— Not set —', value: '' },
+                        { name: 'API', value: 'api' },
+                        { name: 'Mobile', value: 'mobile' },
+                    ],
+                    default: '',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'First Day of Week',
+                    name: 'wsFirstDay',
+                    type: 'options',
+                    options: [
+                        { name: '— Not set —', value: '' },
+                        { name: 'Sunday', value: 'Sunday' },
+                        { name: 'Monday', value: 'Monday' },
+                        { name: 'Tuesday', value: 'Tuesday' },
+                        { name: 'Wednesday', value: 'Wednesday' },
+                        { name: 'Thursday', value: 'Thursday' },
+                        { name: 'Friday', value: 'Friday' },
+                        { name: 'Saturday', value: 'Saturday' },
+                    ],
+                    default: '',
+                    displayOptions: { show: { resource: ['workspace'], operation: ['create', 'update'] } },
+                },
                 // Social accounts
                 {
                     displayName: 'Platform',
@@ -356,6 +447,105 @@ class ContentStudio {
                         show: { resource: ['label'], operation: ['list'] },
                     },
                 },
+                // Label create/update/delete
+                {
+                    displayName: 'Label ID',
+                    name: 'labelId',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'The _id of the label to update or delete (returned by List Labels)',
+                    displayOptions: {
+                        show: { resource: ['label'], operation: ['update', 'delete'] },
+                    },
+                },
+                {
+                    displayName: 'Name',
+                    name: 'labelName',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'Label name (max 100 characters)',
+                    displayOptions: {
+                        show: { resource: ['label'], operation: ['create'] },
+                    },
+                },
+                {
+                    displayName: 'Name',
+                    name: 'labelName',
+                    type: 'string',
+                    default: '',
+                    description: 'Label name (max 100 characters). Leave blank to keep the current value.',
+                    displayOptions: {
+                        show: { resource: ['label'], operation: ['update'] },
+                    },
+                },
+                {
+                    displayName: 'Color',
+                    name: 'labelColor',
+                    type: 'options',
+                    options: [
+                        { name: 'color_1  (#69c366)', value: 'color_1' },
+                        { name: 'color_2  (#5cc6ff)', value: 'color_2' },
+                        { name: 'color_3  (#ff6462)', value: 'color_3' },
+                        { name: 'color_4  (#fea28b)', value: 'color_4' },
+                        { name: 'color_5  (#ff5f31)', value: 'color_5' },
+                        { name: 'color_6  (#864de9)', value: 'color_6' },
+                        { name: 'color_7  (#e7af4d)', value: 'color_7' },
+                        { name: 'color_8  (#fa6ab6)', value: 'color_8' },
+                        { name: 'color_9  (#0095f3)', value: 'color_9' },
+                        { name: 'color_10 (#dc70ea)', value: 'color_10' },
+                        { name: 'color_11 (#456990)', value: 'color_11' },
+                        { name: 'color_12 (#028090)', value: 'color_12' },
+                        { name: 'color_13 (#ffa13f)', value: 'color_13' },
+                        { name: 'color_14 (#231942)', value: 'color_14' },
+                        { name: 'color_15 (#544c72)', value: 'color_15' },
+                        { name: 'color_16 (#975816)', value: 'color_16' },
+                        { name: 'color_17 (#0e4749)', value: 'color_17' },
+                        { name: 'color_18 (#a5be00)', value: 'color_18' },
+                        { name: 'color_19 (#fc1100)', value: 'color_19' },
+                        { name: 'color_20 (#000000)', value: 'color_20' },
+                    ],
+                    default: 'color_1',
+                    required: true,
+                    description: 'Color token for the label. The backend stores the token (e.g. color_1); the hex is shown for reference only.',
+                    displayOptions: {
+                        show: { resource: ['label'], operation: ['create'] },
+                    },
+                },
+                {
+                    displayName: 'Color',
+                    name: 'labelColor',
+                    type: 'options',
+                    options: [
+                        { name: '(keep current)', value: '' },
+                        { name: 'color_1  (#69c366)', value: 'color_1' },
+                        { name: 'color_2  (#5cc6ff)', value: 'color_2' },
+                        { name: 'color_3  (#ff6462)', value: 'color_3' },
+                        { name: 'color_4  (#fea28b)', value: 'color_4' },
+                        { name: 'color_5  (#ff5f31)', value: 'color_5' },
+                        { name: 'color_6  (#864de9)', value: 'color_6' },
+                        { name: 'color_7  (#e7af4d)', value: 'color_7' },
+                        { name: 'color_8  (#fa6ab6)', value: 'color_8' },
+                        { name: 'color_9  (#0095f3)', value: 'color_9' },
+                        { name: 'color_10 (#dc70ea)', value: 'color_10' },
+                        { name: 'color_11 (#456990)', value: 'color_11' },
+                        { name: 'color_12 (#028090)', value: 'color_12' },
+                        { name: 'color_13 (#ffa13f)', value: 'color_13' },
+                        { name: 'color_14 (#231942)', value: 'color_14' },
+                        { name: 'color_15 (#544c72)', value: 'color_15' },
+                        { name: 'color_16 (#975816)', value: 'color_16' },
+                        { name: 'color_17 (#0e4749)', value: 'color_17' },
+                        { name: 'color_18 (#a5be00)', value: 'color_18' },
+                        { name: 'color_19 (#fc1100)', value: 'color_19' },
+                        { name: 'color_20 (#000000)', value: 'color_20' },
+                    ],
+                    default: '',
+                    description: 'Color token for the label. Leave as "(keep current)" to leave color unchanged.',
+                    displayOptions: {
+                        show: { resource: ['label'], operation: ['update'] },
+                    },
+                },
                 // Campaign search
                 {
                     displayName: 'Search',
@@ -365,6 +555,105 @@ class ContentStudio {
                     description: 'Optional search term to filter campaigns by name',
                     displayOptions: {
                         show: { resource: ['campaign'], operation: ['list'] },
+                    },
+                },
+                // Campaign create/update/delete
+                {
+                    displayName: 'Campaign ID',
+                    name: 'campaignId',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'The _id of the campaign to update or delete (returned by List Campaigns)',
+                    displayOptions: {
+                        show: { resource: ['campaign'], operation: ['update', 'delete'] },
+                    },
+                },
+                {
+                    displayName: 'Name',
+                    name: 'campaignName',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'Campaign name (max 100 characters)',
+                    displayOptions: {
+                        show: { resource: ['campaign'], operation: ['create'] },
+                    },
+                },
+                {
+                    displayName: 'Name',
+                    name: 'campaignName',
+                    type: 'string',
+                    default: '',
+                    description: 'Campaign name (max 100 characters). Leave blank to keep the current value.',
+                    displayOptions: {
+                        show: { resource: ['campaign'], operation: ['update'] },
+                    },
+                },
+                {
+                    displayName: 'Color',
+                    name: 'campaignColor',
+                    type: 'options',
+                    options: [
+                        { name: 'color_1  (#69c366)', value: 'color_1' },
+                        { name: 'color_2  (#5cc6ff)', value: 'color_2' },
+                        { name: 'color_3  (#ff6462)', value: 'color_3' },
+                        { name: 'color_4  (#fea28b)', value: 'color_4' },
+                        { name: 'color_5  (#ff5f31)', value: 'color_5' },
+                        { name: 'color_6  (#864de9)', value: 'color_6' },
+                        { name: 'color_7  (#e7af4d)', value: 'color_7' },
+                        { name: 'color_8  (#fa6ab6)', value: 'color_8' },
+                        { name: 'color_9  (#0095f3)', value: 'color_9' },
+                        { name: 'color_10 (#dc70ea)', value: 'color_10' },
+                        { name: 'color_11 (#456990)', value: 'color_11' },
+                        { name: 'color_12 (#028090)', value: 'color_12' },
+                        { name: 'color_13 (#ffa13f)', value: 'color_13' },
+                        { name: 'color_14 (#231942)', value: 'color_14' },
+                        { name: 'color_15 (#544c72)', value: 'color_15' },
+                        { name: 'color_16 (#975816)', value: 'color_16' },
+                        { name: 'color_17 (#0e4749)', value: 'color_17' },
+                        { name: 'color_18 (#a5be00)', value: 'color_18' },
+                        { name: 'color_19 (#fc1100)', value: 'color_19' },
+                        { name: 'color_20 (#000000)', value: 'color_20' },
+                    ],
+                    default: 'color_1',
+                    required: true,
+                    description: 'Color token for the campaign. The backend stores the token (e.g. color_1); the hex is shown for reference only.',
+                    displayOptions: {
+                        show: { resource: ['campaign'], operation: ['create'] },
+                    },
+                },
+                {
+                    displayName: 'Color',
+                    name: 'campaignColor',
+                    type: 'options',
+                    options: [
+                        { name: '(keep current)', value: '' },
+                        { name: 'color_1  (#69c366)', value: 'color_1' },
+                        { name: 'color_2  (#5cc6ff)', value: 'color_2' },
+                        { name: 'color_3  (#ff6462)', value: 'color_3' },
+                        { name: 'color_4  (#fea28b)', value: 'color_4' },
+                        { name: 'color_5  (#ff5f31)', value: 'color_5' },
+                        { name: 'color_6  (#864de9)', value: 'color_6' },
+                        { name: 'color_7  (#e7af4d)', value: 'color_7' },
+                        { name: 'color_8  (#fa6ab6)', value: 'color_8' },
+                        { name: 'color_9  (#0095f3)', value: 'color_9' },
+                        { name: 'color_10 (#dc70ea)', value: 'color_10' },
+                        { name: 'color_11 (#456990)', value: 'color_11' },
+                        { name: 'color_12 (#028090)', value: 'color_12' },
+                        { name: 'color_13 (#ffa13f)', value: 'color_13' },
+                        { name: 'color_14 (#231942)', value: 'color_14' },
+                        { name: 'color_15 (#544c72)', value: 'color_15' },
+                        { name: 'color_16 (#975816)', value: 'color_16' },
+                        { name: 'color_17 (#0e4749)', value: 'color_17' },
+                        { name: 'color_18 (#a5be00)', value: 'color_18' },
+                        { name: 'color_19 (#fc1100)', value: 'color_19' },
+                        { name: 'color_20 (#000000)', value: 'color_20' },
+                    ],
+                    default: '',
+                    description: 'Color token for the campaign. Leave as "(keep current)" to leave color unchanged.',
+                    displayOptions: {
+                        show: { resource: ['campaign'], operation: ['update'] },
                     },
                 },
                 // Media list filters
@@ -441,6 +730,82 @@ class ContentStudio {
                     description: 'Optional search term to filter team members by name or email',
                     displayOptions: {
                         show: { resource: ['teamMember'], operation: ['list'] },
+                    },
+                },
+                // Team member create/update/delete
+                {
+                    displayName: 'Member ID',
+                    name: 'teamMemberId',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'Membership id (the member_id field returned by List Team Members)',
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['update', 'delete'] },
+                    },
+                },
+                {
+                    displayName: 'Role',
+                    name: 'teamRole',
+                    type: 'options',
+                    options: [
+                        { name: 'Admin', value: 'admin' },
+                        { name: 'Approver', value: 'approver' },
+                        { name: 'Collaborator', value: 'collaborator' },
+                    ],
+                    default: 'collaborator',
+                    required: true,
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['create', 'update'] },
+                    },
+                },
+                {
+                    displayName: 'Membership',
+                    name: 'teamMembership',
+                    type: 'options',
+                    options: [
+                        { name: 'Team', value: 'team' },
+                        { name: 'Client', value: 'client' },
+                    ],
+                    default: 'team',
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['create', 'update'] },
+                    },
+                },
+                {
+                    displayName: 'Email',
+                    name: 'teamEmail',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    placeholder: 'name@example.com',
+                    description: 'Email address of the member to invite',
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['create'] },
+                    },
+                },
+                {
+                    displayName: 'Permissions (JSON)',
+                    name: 'teamPermissions',
+                    type: 'json',
+                    default: '{}',
+                    description: 'Permission object — ROLE-AWARE: pass only booleans valid for the chosen role, else the API returns 422. ' +
+                        'Shared (any role): accessSharedFolder, allow_workflow_management. ' +
+                        'collaborator: addBlog, addSocial, addSource, addTopic, viewTeam, rescheduleQueue, postsReview, changeFBGroupPublishAs, hasListeningAccess. ' +
+                        'approver: approverCanEditPost, approverCanAddNotes, approverCanCreatePost. admin: hasBillingAccess. ' +
+                        'Account-access arrays of IDs (any role): facebook, instagram, threads, twitter, linkedin, pinterest, telegram, youtube, tiktok, tumblr, tumblr_blogs, tumblr_profiles, bluesky, gmb, wordpress, medium, shopify, webflow; plus content_categories[].',
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['create', 'update'] },
+                    },
+                },
+                {
+                    displayName: 'Confirm Removal',
+                    name: 'teamConfirmed',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to confirm removal when the member is part of approval workflows or in-flight posts (otherwise the API returns REQUIRES_REMOVAL_CONFIRMATION)',
+                    displayOptions: {
+                        show: { resource: ['teamMember'], operation: ['delete'] },
                     },
                 },
                 // Comment fields
@@ -992,6 +1357,7 @@ class ContentStudio {
     async execute() {
         const items = this.getInputData();
         const returnData = [];
+        const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         for (let i = 0; i < items.length; i++) {
             try {
                 const resource = this.getNodeParameter('resource', i);
@@ -1018,6 +1384,65 @@ class ContentStudio {
                     options.method = 'GET';
                     options.url = `${baseRoot}/v1/workspaces`;
                     options.qs = { page, per_page: perPage };
+                }
+                if (resource === 'workspace' && operation === 'create') {
+                    const name = this.getNodeParameter('wsName', i);
+                    const logo = this.getNodeParameter('wsLogo', i);
+                    const timezone = this.getNodeParameter('wsTimezone', i);
+                    if (!name || !logo || !timezone) {
+                        throw new Error('Name, Logo URL and Timezone are required to create a workspace');
+                    }
+                    const body = { name, logo, timezone };
+                    const superAdminId = this.getNodeParameter('wsSuperAdminId', i);
+                    if (superAdminId)
+                        body.super_admin_id = superAdminId;
+                    const note = this.getNodeParameter('wsNote', i);
+                    if (note)
+                        body.note = note;
+                    const ig = this.getNodeParameter('wsInstagramPostingMethod', i);
+                    if (ig)
+                        body.instagram_posting_method = ig;
+                    const firstDay = this.getNodeParameter('wsFirstDay', i);
+                    if (firstDay) {
+                        body.first_day = { day: firstDay, key: WEEK_DAYS.indexOf(firstDay) };
+                    }
+                    options.method = 'POST';
+                    options.url = `${baseRoot}/v1/workspaces`;
+                    options.body = body;
+                }
+                if (resource === 'workspace' && operation === 'update') {
+                    const workspaceId = this.getNodeParameter('workspaceTargetId', i);
+                    const body = {};
+                    const name = this.getNodeParameter('wsName', i);
+                    if (name)
+                        body.name = name;
+                    const logo = this.getNodeParameter('wsLogo', i);
+                    if (logo)
+                        body.logo = logo;
+                    const timezone = this.getNodeParameter('wsTimezone', i);
+                    if (timezone)
+                        body.timezone = timezone;
+                    const note = this.getNodeParameter('wsNote', i);
+                    if (note)
+                        body.note = note;
+                    const ig = this.getNodeParameter('wsInstagramPostingMethod', i);
+                    if (ig)
+                        body.instagram_posting_method = ig;
+                    const firstDay = this.getNodeParameter('wsFirstDay', i);
+                    if (firstDay) {
+                        body.first_day = { day: firstDay, key: WEEK_DAYS.indexOf(firstDay) };
+                    }
+                    if (Object.keys(body).length === 0) {
+                        throw new Error('Provide at least one field to update');
+                    }
+                    options.method = 'PUT';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}`;
+                    options.body = body;
+                }
+                if (resource === 'workspace' && operation === 'delete') {
+                    const workspaceId = this.getNodeParameter('workspaceTargetId', i);
+                    options.method = 'DELETE';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}`;
                 }
                 if (resource === 'socialAccount' && operation === 'list') {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
@@ -1050,6 +1475,42 @@ class ContentStudio {
                         qs.search = search;
                     options.qs = qs;
                 }
+                if (resource === 'label' && operation === 'create') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const name = this.getNodeParameter('labelName', i).trim();
+                    const color = this.getNodeParameter('labelColor', i);
+                    if (!name)
+                        throw new Error('Name is required');
+                    if (!color)
+                        throw new Error('Color is required');
+                    options.method = 'POST';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/labels`;
+                    options.body = { name, color };
+                }
+                if (resource === 'label' && operation === 'update') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const labelId = this.getNodeParameter('labelId', i).trim();
+                    if (!labelId)
+                        throw new Error('Label ID is required');
+                    const name = this.getNodeParameter('labelName', i).trim();
+                    const color = this.getNodeParameter('labelColor', i).trim();
+                    const body = {};
+                    if (name)
+                        body.name = name;
+                    if (color)
+                        body.color = color;
+                    options.method = 'PUT';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/labels/${labelId}`;
+                    options.body = body;
+                }
+                if (resource === 'label' && operation === 'delete') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const labelId = this.getNodeParameter('labelId', i).trim();
+                    if (!labelId)
+                        throw new Error('Label ID is required');
+                    options.method = 'DELETE';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/labels/${labelId}`;
+                }
                 if (resource === 'campaign' && operation === 'list') {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
                     const page = this.getNodeParameter('page', i);
@@ -1061,6 +1522,42 @@ class ContentStudio {
                     if (search)
                         qs.search = search;
                     options.qs = qs;
+                }
+                if (resource === 'campaign' && operation === 'create') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const name = this.getNodeParameter('campaignName', i).trim();
+                    const color = this.getNodeParameter('campaignColor', i);
+                    if (!name)
+                        throw new Error('Name is required');
+                    if (!color)
+                        throw new Error('Color is required');
+                    options.method = 'POST';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
+                    options.body = { name, color };
+                }
+                if (resource === 'campaign' && operation === 'update') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const campaignId = this.getNodeParameter('campaignId', i).trim();
+                    if (!campaignId)
+                        throw new Error('Campaign ID is required');
+                    const name = this.getNodeParameter('campaignName', i).trim();
+                    const color = this.getNodeParameter('campaignColor', i).trim();
+                    const body = {};
+                    if (name)
+                        body.name = name;
+                    if (color)
+                        body.color = color;
+                    options.method = 'PUT';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns/${campaignId}`;
+                    options.body = body;
+                }
+                if (resource === 'campaign' && operation === 'delete') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const campaignId = this.getNodeParameter('campaignId', i).trim();
+                    if (!campaignId)
+                        throw new Error('Campaign ID is required');
+                    options.method = 'DELETE';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns/${campaignId}`;
                 }
                 if (resource === 'media' && operation === 'list') {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
@@ -1103,6 +1600,44 @@ class ContentStudio {
                     if (search)
                         qs.search = search;
                     options.qs = qs;
+                }
+                if (resource === 'teamMember' && operation === 'create') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const role = this.getNodeParameter('teamRole', i);
+                    const membership = this.getNodeParameter('teamMembership', i);
+                    const email = this.getNodeParameter('teamEmail', i).trim();
+                    if (!email)
+                        throw new Error('Email is required');
+                    const permissions = (0, utils_1.parseJsonObject)(this.getNodeParameter('teamPermissions', i));
+                    const body = { role, membership, email };
+                    if (permissions && Object.keys(permissions).length)
+                        body.permissions = permissions;
+                    options.method = 'POST';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/team-members`;
+                    options.body = body;
+                }
+                if (resource === 'teamMember' && operation === 'update') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const memberId = this.getNodeParameter('teamMemberId', i);
+                    if (!memberId)
+                        throw new Error('Member ID is required');
+                    const role = this.getNodeParameter('teamRole', i);
+                    const membership = this.getNodeParameter('teamMembership', i);
+                    const permissions = (0, utils_1.parseJsonObject)(this.getNodeParameter('teamPermissions', i));
+                    options.method = 'PUT';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/team-members/${memberId}`;
+                    options.body = { role, membership, permissions: permissions || {} };
+                }
+                if (resource === 'teamMember' && operation === 'delete') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const memberId = this.getNodeParameter('teamMemberId', i);
+                    if (!memberId)
+                        throw new Error('Member ID is required');
+                    const confirmed = this.getNodeParameter('teamConfirmed', i);
+                    options.method = 'DELETE';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/team-members/${memberId}`;
+                    if (confirmed)
+                        options.qs = { confirmed: 'true' };
                 }
                 if (resource === 'comment' && operation === 'list') {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
