@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-contentstudio",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "description": "n8n node for ContentStudio API (X-API-Key)",
   "keywords": ["n8n-community-node-package", "n8n", "workflow", "contentstudio", "social", "api", "automation"],
   "license": "MIT",
@@ -51,7 +51,6 @@
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
-    "n8n-workflow": ">=1.0.0",
-    "n8n-core": ">=1.0.0"
+    "n8n-workflow": "*"
   }
 }
