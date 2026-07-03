@@ -28,6 +28,23 @@ export function parseAccounts(val: unknown): any[] {
 }
 
 // Attempt to parse string into object/array, otherwise return trimmed string
+// Coerce an n8n "json" field value (object or JSON string) into a plain object.
+export function parseJsonObject(val: unknown): Record<string, any> {
+  if (val == null) return {};
+  if (typeof val === 'object') return val as Record<string, any>;
+  if (typeof val === 'string') {
+    const t = val.trim();
+    if (!t) return {};
+    try {
+      const parsed = JSON.parse(t);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      throw new Error('Permissions must be a valid JSON object');
+    }
+  }
+  return {};
+}
+
 export function parseMaybeObject(val: string): any {
   const t = (val || '').trim();
   if (!t) return undefined;

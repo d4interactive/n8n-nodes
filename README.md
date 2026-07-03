@@ -34,7 +34,7 @@ The API base URL is built into the node, so users only need to provide their API
 ### Resources
 
 - **Auth**: Validate API key
-- **Workspace**: List workspaces
+- **Workspace**: List, create, update, and delete workspaces
 - **Social Account**: List social accounts
 - **Post**: Create, list, and delete posts
 

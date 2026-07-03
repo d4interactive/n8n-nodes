@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalizeBase = normalizeBase;
 exports.parseArray = parseArray;
 exports.parseAccounts = parseAccounts;
+exports.parseJsonObject = parseJsonObject;
 exports.parseMaybeObject = parseMaybeObject;
 exports.parseCommaSeparated = parseCommaSeparated;
 exports.parseMediaImages = parseMediaImages;
@@ -37,6 +38,26 @@ function parseAccounts(val) {
     return parseArray(val);
 }
 // Attempt to parse string into object/array, otherwise return trimmed string
+// Coerce an n8n "json" field value (object or JSON string) into a plain object.
+function parseJsonObject(val) {
+    if (val == null)
+        return {};
+    if (typeof val === 'object')
+        return val;
+    if (typeof val === 'string') {
+        const t = val.trim();
+        if (!t)
+            return {};
+        try {
+            const parsed = JSON.parse(t);
+            return typeof parsed === 'object' && parsed !== null ? parsed : {};
+        }
+        catch {
+            throw new Error('Permissions must be a valid JSON object');
+        }
+    }
+    return {};
+}
 function parseMaybeObject(val) {
     const t = (val || '').trim();
     if (!t)
