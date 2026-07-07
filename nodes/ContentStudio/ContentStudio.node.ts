@@ -1248,6 +1248,32 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
       },
       {
+        displayName: 'Facebook Reel Collaborators',
+        name: 'facebookCollaborators',
+        type: 'string',
+        default: '',
+        placeholder: '1234567890, @mypage, https://facebook.com/mypage',
+        description: 'Comma-separated Facebook Page identifiers to invite as Reel collaborators (max 10). Each item is a Facebook Page: a numeric Page ID (recommended), an @username, or a Page URL. Applied server-side only when the post resolves to a Facebook reel (post type "Reel" or "Reel + Story" with a video); ignored otherwise. Facebook allows up to 10 invites per Page per 24h.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
+      },
+      {
+        displayName: 'Enable Instagram Options',
+        name: 'hasInstagramOptions',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to add Instagram-specific options (e.g. collaborators/co-authors). Only applies to Instagram accounts.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Instagram Collaborators',
+        name: 'instagramCollaborators',
+        type: 'string',
+        default: '',
+        placeholder: 'username1, username2, username3',
+        description: 'Comma-separated Instagram usernames to invite as collaborators/co-authors (max 3). Applied to any non-story Instagram post.',
+        displayOptions: { show: { resource: ['post'], operation: ['create'], hasInstagramOptions: [true] } },
+      },
+      {
         displayName: 'Post Type',
         name: 'postType',
         type: 'options',
@@ -1937,6 +1963,30 @@ export class ContentStudio implements INodeType {
             ...(carouselEndCardUrl ? { end_card_url: carouselEndCardUrl } : {}),
             ...(carouselAccounts.length ? { accounts: carouselAccounts } : {}),
           };
+        }
+
+        // Facebook Reel collaborators (facebook_options.collaborators, max 10) — gated by the Facebook options toggle
+        if (hasFacebookBackground) {
+          const facebookCollaborators = parseCommaSeparated(this.getNodeParameter('facebookCollaborators', i, '') as unknown);
+          if (facebookCollaborators.length > 0) {
+            if (facebookCollaborators.length > 10) {
+              throw new Error(`Facebook reel collaborators supports at most 10 (got ${facebookCollaborators.length})`);
+            }
+            (options.body as any).facebook_options = (options.body as any).facebook_options || {};
+            (options.body as any).facebook_options.collaborators = facebookCollaborators;
+          }
+        }
+
+        // Instagram collaborators (instagram_options.collaborators, max 3) — gated by the Instagram options toggle
+        const hasInstagramOptions = this.getNodeParameter('hasInstagramOptions', i, false) as boolean;
+        if (hasInstagramOptions) {
+          const instagramCollaborators = parseCommaSeparated(this.getNodeParameter('instagramCollaborators', i, '') as unknown);
+          if (instagramCollaborators.length > 0) {
+            if (instagramCollaborators.length > 3) {
+              throw new Error(`Instagram collaborators supports at most 3 (got ${instagramCollaborators.length})`);
+            }
+            (options.body as any).instagram_options = { collaborators: instagramCollaborators };
+          }
         }
 
         // Add content_category_id when publish type is content_category
