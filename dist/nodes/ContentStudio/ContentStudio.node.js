@@ -14,7 +14,7 @@ function createThreadOptionsSection(enableName, displayName, optionsName, collec
             type: 'boolean',
             default: false,
             description: `Whether to include ${displayName.toLowerCase()} in the post.`,
-            displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+            displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
         },
         {
             displayName,
@@ -101,7 +101,7 @@ function createThreadOptionsSection(enableName, displayName, optionsName, collec
                     ],
                 },
             ],
-            displayOptions: { show: { resource: ['post'], operation: ['create'], [enableName]: [true] } },
+            displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], [enableName]: [true] } },
         },
     ];
 }
@@ -171,6 +171,7 @@ class ContentStudio {
                     type: 'options',
                     noDataExpression: true,
                     options: [
+                        { name: 'Approval Workflow', value: 'approvalWorkflow' },
                         { name: 'Auth', value: 'auth' },
                         { name: 'Campaign', value: 'campaign' },
                         { name: 'Comment', value: 'comment' },
@@ -200,6 +201,17 @@ class ContentStudio {
                     name: 'operation',
                     type: 'options',
                     noDataExpression: true,
+                    displayOptions: { show: { resource: ['approvalWorkflow'] } },
+                    options: [
+                        { name: 'List', value: 'list', action: 'List Approval Workflows' },
+                    ],
+                    default: 'list',
+                },
+                {
+                    displayName: 'Operation',
+                    name: 'operation',
+                    type: 'options',
+                    noDataExpression: true,
                     displayOptions: { show: { resource: ['workspace'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List workspaces' },
@@ -217,6 +229,7 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['socialAccount'] } },
                     options: [
                         { name: 'List', value: 'list', action: 'List Social Accounts' },
+                        { name: 'Remove', value: 'remove', action: 'Remove a Social Account' },
                     ],
                     default: 'list',
                 },
@@ -306,6 +319,7 @@ class ContentStudio {
                     options: [
                         { name: 'List', value: 'list', action: 'List Posts' },
                         { name: 'Create', value: 'create', action: 'Create Social Post' },
+                        { name: 'Update', value: 'update', action: 'Update Social Post' },
                         { name: 'Delete', value: 'delete', action: 'Delete Post' },
                         { name: 'Approve/Reject', value: 'approve', action: 'Approve or Reject Post' },
                     ],
@@ -322,7 +336,7 @@ class ContentStudio {
                     description: 'Workspace ID',
                     displayOptions: {
                         show: {
-                            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'],
+                            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'],
                         },
                     },
                 },
@@ -333,7 +347,7 @@ class ContentStudio {
                     default: 1,
                     typeOptions: { minValue: 1 },
                     displayOptions: {
-                        show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'], operation: ['list'] },
+                        show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'], operation: ['list'] },
                     },
                 },
                 {
@@ -343,7 +357,7 @@ class ContentStudio {
                     default: 10,
                     typeOptions: { minValue: 1, maxValue: 100 },
                     displayOptions: {
-                        show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment'], operation: ['list'] },
+                        show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'], operation: ['list'] },
                     },
                 },
                 // Workspace create/update/delete
@@ -434,6 +448,18 @@ class ContentStudio {
                     description: 'Optional platform filter',
                     displayOptions: {
                         show: { resource: ['socialAccount'], operation: ['list'] },
+                    },
+                },
+                {
+                    displayName: 'Account',
+                    name: 'accountId',
+                    type: 'options',
+                    typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
+                    default: '',
+                    required: true,
+                    description: 'The social account to remove (disconnect). This is the account _id returned by List Social Accounts.',
+                    displayOptions: {
+                        show: { resource: ['socialAccount'], operation: ['remove'] },
                     },
                 },
                 // Label search
@@ -1013,6 +1039,16 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['post'], operation: ['delete'] } },
                 },
                 {
+                    displayName: 'Post ID',
+                    name: 'updatePostId',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    placeholder: 'Enter post ID',
+                    description: 'The ID of the post to update. Get this from the Post List operation. Update is rejected (422) when the post status is already "published" or "processing".',
+                    displayOptions: { show: { resource: ['post'], operation: ['update'] } },
+                },
+                {
                     displayName: 'Accounts',
                     name: 'accounts',
                     type: 'multiOptions',
@@ -1020,14 +1056,14 @@ class ContentStudio {
                     default: [],
                     required: false,
                     description: 'Select one or more social accounts to publish to. Optional if using Content Category (accounts will be merged from category).',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Content Text',
                     name: 'contentText',
                     type: 'string',
                     default: '',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Media Images',
@@ -1054,7 +1090,7 @@ class ContentStudio {
                             ],
                         },
                     ],
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Media Video',
@@ -1081,7 +1117,7 @@ class ContentStudio {
                             ],
                         },
                     ],
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 ...createThreadOptionsSection('hasTwitterOptions', 'Twitter Options', 'twitterOptions', 'threadedTweets', true),
                 ...createThreadOptionsSection('hasThreadsOptions', 'Threads Options', 'threadsOptions', 'multiThreads', true),
@@ -1091,7 +1127,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to add Facebook-specific options (e.g. a colored/gradient/image background for a plain-text Facebook post). Only applies to Facebook accounts on text-only posts.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Facebook Text-Post Background',
@@ -1101,7 +1137,7 @@ class ContentStudio {
                     default: '',
                     required: false,
                     description: 'Pick a background preset. The backend rejects the post if images or video are attached.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookBackground: [true] } },
                 },
                 {
                     displayName: 'Enable Facebook Carousel',
@@ -1109,7 +1145,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to publish as a Facebook multi-card carousel post (2-10 link cards). Requires at least one Facebook account selected above. Carousel is image-only — video is not allowed.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Carousel Cards',
@@ -1119,7 +1155,7 @@ class ContentStudio {
                     default: { card: [{ image: '', title: '', description: '', link: '' }, { image: '', title: '', description: '', link: '' }] },
                     typeOptions: { multipleValues: true, minValue: 2, maxValue: 10 },
                     description: 'Between 2 and 10 carousel cards. Each card needs an image URL and a destination link.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookCarousel: [true] } },
                     options: [
                         {
                             name: 'card',
@@ -1139,7 +1175,7 @@ class ContentStudio {
                     type: 'options',
                     default: 'NO_BUTTON',
                     description: 'CTA button shown on every card.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookCarousel: [true] } },
                     options: [
                         { name: 'No Button', value: 'NO_BUTTON' },
                         { name: 'Add To Cart', value: 'ADD_TO_CART' },
@@ -1181,7 +1217,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to include the Facebook end card after the last card.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookCarousel: [true] } },
                 },
                 {
                     displayName: 'End Card URL',
@@ -1190,7 +1226,7 @@ class ContentStudio {
                     default: '',
                     placeholder: 'https://example.com',
                     description: 'Destination URL for the end card. Falls back to the first card\'s link when omitted.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookCarousel: [true] } },
                 },
                 {
                     displayName: 'Carousel Target Accounts',
@@ -1199,7 +1235,7 @@ class ContentStudio {
                     typeOptions: { loadOptionsMethod: 'getCarouselAccounts', loadOptionsDependsOn: ['workspaceId', 'accounts'] },
                     default: [],
                     description: 'Restrict carousel mode to a subset of your selected Facebook accounts. Leave empty to apply carousel to ALL Facebook accounts in this post. Only Facebook accounts from the selected accounts above are shown.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookCarousel: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookCarousel: [true] } },
                 },
                 {
                     displayName: 'Facebook Reel Collaborators',
@@ -1208,7 +1244,7 @@ class ContentStudio {
                     default: '',
                     placeholder: '1234567890, @mypage, https://facebook.com/mypage',
                     description: 'Comma-separated Facebook Page identifiers to invite as Reel collaborators (max 10). Each item is a Facebook Page: a numeric Page ID (recommended), an @username, or a Page URL. Applied server-side only when the post resolves to a Facebook reel (post type "Reel" or "Reel + Story" with a video); ignored otherwise. Facebook allows up to 10 invites per Page per 24h.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFacebookBackground: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFacebookBackground: [true] } },
                 },
                 {
                     displayName: 'Enable Instagram Options',
@@ -1216,7 +1252,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to add Instagram-specific options (e.g. collaborators/co-authors). Only applies to Instagram accounts.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Instagram Collaborators',
@@ -1225,14 +1261,72 @@ class ContentStudio {
                     default: '',
                     placeholder: 'username1, username2, username3',
                     description: 'Comma-separated Instagram usernames to invite as collaborators/co-authors (max 3). Applied to any non-story Instagram post.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasInstagramOptions: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasInstagramOptions: [true] } },
+                },
+                {
+                    displayName: 'Enable LinkedIn Options',
+                    name: 'hasLinkedinOptions',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to add LinkedIn-specific options (a document/post title and/or a poll). Only applies to LinkedIn accounts.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'LinkedIn Title',
+                    name: 'linkedinTitle',
+                    type: 'string',
+                    default: '',
+                    description: 'Optional LinkedIn post/document title (max 255 characters).',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasLinkedinOptions: [true] } },
+                },
+                {
+                    displayName: 'Enable LinkedIn Poll',
+                    name: 'linkedinEnablePoll',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to attach a LinkedIn poll. A poll requires Post Type = "Poll" and a text-only post (no images or video).',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasLinkedinOptions: [true] } },
+                },
+                {
+                    displayName: 'Poll Question',
+                    name: 'linkedinPollQuestion',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    description: 'The poll question (max 140 characters).',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasLinkedinOptions: [true], linkedinEnablePoll: [true] } },
+                },
+                {
+                    displayName: 'Poll Options',
+                    name: 'linkedinPollOptions',
+                    type: 'string',
+                    default: '',
+                    required: true,
+                    placeholder: 'Option A, Option B',
+                    description: 'Comma-separated poll options: between 2 and 4 options, each max 30 characters.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasLinkedinOptions: [true], linkedinEnablePoll: [true] } },
+                },
+                {
+                    displayName: 'Poll Duration',
+                    name: 'linkedinPollDuration',
+                    type: 'options',
+                    options: [
+                        { name: '1 Day', value: 'ONE_DAY' },
+                        { name: '3 Days', value: 'THREE_DAYS' },
+                        { name: '7 Days', value: 'SEVEN_DAYS' },
+                        { name: '14 Days', value: 'FOURTEEN_DAYS' },
+                    ],
+                    default: 'ONE_DAY',
+                    required: true,
+                    description: 'How long the poll stays open.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasLinkedinOptions: [true], linkedinEnablePoll: [true] } },
                 },
                 {
                     displayName: 'Post Type',
                     name: 'postType',
                     type: 'options',
                     default: 'feed',
-                    description: 'Optional post type. Platform-specific. For Facebook carousel posts you may set "Carousel" here, but you must also enable Facebook Carousel above with at least 2 cards.',
+                    description: 'Optional post type. Platform-specific. For Facebook carousel posts you may set "Carousel" here, but you must also enable Facebook Carousel above with at least 2 cards. For a LinkedIn poll set "Poll" here and enable LinkedIn Options → Poll below (poll posts must be text-only — no images or video).',
                     options: [
                         { name: 'Feed', value: 'feed' },
                         { name: 'Feed + Reel', value: 'feed+reel' },
@@ -1245,8 +1339,9 @@ class ContentStudio {
                         { name: 'Carousel + Story', value: 'carousel+story' },
                         { name: 'Video', value: 'video' },
                         { name: 'Shorts', value: 'shorts' },
+                        { name: 'Poll', value: 'poll' },
                     ],
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Publish Type',
@@ -1259,7 +1354,7 @@ class ContentStudio {
                         { name: 'Content Category', value: 'content_category' },
                     ],
                     default: 'scheduled',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Content Category',
@@ -1269,7 +1364,7 @@ class ContentStudio {
                     default: '',
                     required: true,
                     description: 'Select a content category. Accounts from the category will be used if no accounts are selected.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['content_category'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['content_category'] } },
                 },
                 {
                     displayName: 'Scheduled At',
@@ -1279,7 +1374,7 @@ class ContentStudio {
                     default: '',
                     placeholder: '2025-10-11 11:15:00',
                     description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], publishType: ['scheduled'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'] } },
                 },
                 {
                     displayName: 'Enable First Comment',
@@ -1287,7 +1382,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to add a first comment to the post',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Comment Message',
@@ -1297,7 +1392,7 @@ class ContentStudio {
                     default: '',
                     placeholder: 'Enter your first comment...',
                     description: 'The message to post as the first comment',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFirstComment: [true] } },
                 },
                 {
                     displayName: 'Comment Accounts',
@@ -1307,7 +1402,7 @@ class ContentStudio {
                     required: false,
                     default: [],
                     description: 'Select accounts to add the first comment. Optional if using Content Category (accounts will be merged from category).',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], hasFirstComment: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasFirstComment: [true] } },
                 },
                 // Post create — approval fields
                 {
@@ -1316,7 +1411,7 @@ class ContentStudio {
                     type: 'boolean',
                     default: false,
                     description: 'Whether to send this post for approval before publishing',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Approver IDs',
@@ -1325,7 +1420,7 @@ class ContentStudio {
                     default: '',
                     required: true,
                     description: 'Comma-separated user IDs of team members who can approve. Get IDs from the Team Member resource.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], sendForApproval: [true] } },
                 },
                 {
                     displayName: 'Approval Mode',
@@ -1337,7 +1432,7 @@ class ContentStudio {
                     ],
                     default: 'anyone',
                     description: '"Anyone" = any single approver can approve. "Everyone" = all approvers must approve.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], sendForApproval: [true] } },
                 },
                 {
                     displayName: 'Notes for Approvers',
@@ -1345,7 +1440,49 @@ class ContentStudio {
                     type: 'string',
                     default: '',
                     description: 'Optional notes for the approvers',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'], sendForApproval: [true] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], sendForApproval: [true] } },
+                },
+                // Post create/update — multi-level approval workflow (mutually exclusive with the legacy approval above)
+                {
+                    displayName: 'Use Approval Workflow',
+                    name: 'useApprovalWorkflow',
+                    type: 'boolean',
+                    default: false,
+                    description: 'Whether to attach a multi-level approval workflow to this post. Mutually exclusive with "Send for Approval" above — enable only one. Use the Approval Workflow resource to list available workflows.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
+                },
+                {
+                    displayName: 'Approval Workflow',
+                    name: 'approvalWorkflowId',
+                    type: 'options',
+                    typeOptions: { loadOptionsMethod: 'getApprovalWorkflows', loadOptionsDependsOn: ['workspaceId'] },
+                    default: '',
+                    description: 'The workflow to attach to the post (its _id). On create this is required to attach a workflow. On update, set this to (re)attach a workflow, OR leave it empty and choose a Workflow Action instead — provide exactly one of the two.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], useApprovalWorkflow: [true] } },
+                },
+                {
+                    displayName: 'Workflow Action',
+                    name: 'approvalWorkflowAction',
+                    type: 'options',
+                    options: [
+                        { name: '— None (attach via Approval Workflow above) —', value: '' },
+                        { name: 'Restart', value: 'restart' },
+                        { name: 'Resume', value: 'resume' },
+                        { name: 'Renotify Current', value: 'renotify_current' },
+                        { name: 'Keep', value: 'keep' },
+                        { name: 'Remove', value: 'remove' },
+                    ],
+                    default: '',
+                    description: 'Update-only action on the already-attached workflow. Provide exactly one of Approval Workflow (attach) or Workflow Action — not both.',
+                    displayOptions: { show: { resource: ['post'], operation: ['update'], useApprovalWorkflow: [true] } },
+                },
+                {
+                    displayName: 'Workflow Notes',
+                    name: 'approvalWorkflowNotes',
+                    type: 'string',
+                    default: '',
+                    description: 'Optional notes for the approval workflow.',
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], useApprovalWorkflow: [true] } },
                 },
                 // Post create — labels & campaign
                 {
@@ -1354,7 +1491,7 @@ class ContentStudio {
                     type: 'string',
                     default: '',
                     description: 'Comma-separated label IDs to assign to the post. Get IDs from the Label resource. Max 20.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
                     displayName: 'Campaign ID',
@@ -1362,7 +1499,7 @@ class ContentStudio {
                     type: 'string',
                     default: '',
                     description: 'Campaign ID to assign the post to. Get the ID from the Campaign resource.',
-                    displayOptions: { show: { resource: ['post'], operation: ['create'] } },
+                    displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
             ],
         };
@@ -1377,6 +1514,7 @@ class ContentStudio {
                 getContentCategories: loadOptions_1.getContentCategories,
                 getTeamMembers: loadOptions_1.getTeamMembers,
                 getFacebookBackgrounds: loadOptions_1.getFacebookBackgrounds,
+                getApprovalWorkflows: loadOptions_1.getApprovalWorkflows,
             },
         };
     }
@@ -1403,6 +1541,14 @@ class ContentStudio {
                 if (resource === 'auth' && operation === 'validateKey') {
                     options.method = 'GET';
                     options.url = `${baseRoot}/v1/me`;
+                }
+                if (resource === 'approvalWorkflow' && operation === 'list') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const page = this.getNodeParameter('page', i);
+                    const perPage = this.getNodeParameter('perPage', i);
+                    options.method = 'GET';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows`;
+                    options.qs = { page, per_page: perPage };
                 }
                 if (resource === 'workspace' && operation === 'list') {
                     const page = this.getNodeParameter('page', i);
@@ -1480,6 +1626,14 @@ class ContentStudio {
                     options.qs = { page, per_page: perPage };
                     if (platform)
                         options.qs.platform = platform;
+                }
+                if (resource === 'socialAccount' && operation === 'remove') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const accountId = this.getNodeParameter('accountId', i);
+                    if (!accountId)
+                        throw new Error('Account is required');
+                    options.method = 'DELETE';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts/${accountId}`;
                 }
                 if (resource === 'contentCategory' && operation === 'list') {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
@@ -1740,7 +1894,7 @@ class ContentStudio {
                     options.method = 'GET';
                     options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts?${qsParts.join('&')}`;
                 }
-                if (resource === 'post' && operation === 'create') {
+                if (resource === 'post' && (operation === 'create' || operation === 'update')) {
                     const workspaceId = this.getNodeParameter('workspaceId', i);
                     const contentText = this.getNodeParameter('contentText', i) || '';
                     const mediaImagesParam = this.getNodeParameter('mediaImages', i);
@@ -1819,8 +1973,17 @@ class ContentStudio {
                         firstCommentAccountIds = validCommentAccounts;
                     }
                     const postType = this.getNodeParameter('postType', i, 'feed') || 'feed';
-                    options.method = 'POST';
-                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+                    if (operation === 'update') {
+                        const updatePostId = this.getNodeParameter('updatePostId', i).trim();
+                        if (!updatePostId)
+                            throw new Error('Post ID is required to update a post');
+                        options.method = 'PUT';
+                        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${updatePostId}`;
+                    }
+                    else {
+                        options.method = 'POST';
+                        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts`;
+                    }
                     options.body = {
                         content: {
                             text: contentText,
@@ -1925,6 +2088,44 @@ class ContentStudio {
                             options.body.instagram_options = { collaborators: instagramCollaborators };
                         }
                     }
+                    // LinkedIn options (title and/or poll) — gated by the LinkedIn options toggle
+                    const hasLinkedinOptions = this.getNodeParameter('hasLinkedinOptions', i, false);
+                    if (hasLinkedinOptions) {
+                        const linkedinOptions = {};
+                        const linkedinTitle = (this.getNodeParameter('linkedinTitle', i, '') || '').trim();
+                        if (linkedinTitle) {
+                            if (linkedinTitle.length > 255) {
+                                throw new Error('LinkedIn Title supports at most 255 characters');
+                            }
+                            linkedinOptions.title = linkedinTitle;
+                        }
+                        const linkedinEnablePoll = this.getNodeParameter('linkedinEnablePoll', i, false);
+                        if (linkedinEnablePoll) {
+                            const pollQuestion = (this.getNodeParameter('linkedinPollQuestion', i, '') || '').trim();
+                            if (!pollQuestion) {
+                                throw new Error('Poll Question is required when LinkedIn Poll is enabled');
+                            }
+                            if (pollQuestion.length > 140) {
+                                throw new Error('Poll Question supports at most 140 characters');
+                            }
+                            const pollOptions = (0, utils_1.parseCommaSeparated)(this.getNodeParameter('linkedinPollOptions', i, ''));
+                            if (pollOptions.length < 2 || pollOptions.length > 4) {
+                                throw new Error(`LinkedIn poll requires between 2 and 4 options (got ${pollOptions.length})`);
+                            }
+                            if (pollOptions.some((opt) => opt.length > 30)) {
+                                throw new Error('Each LinkedIn poll option supports at most 30 characters');
+                            }
+                            const pollDuration = this.getNodeParameter('linkedinPollDuration', i, 'ONE_DAY') || 'ONE_DAY';
+                            linkedinOptions.poll = {
+                                question: pollQuestion,
+                                options: pollOptions,
+                                duration: pollDuration,
+                            };
+                        }
+                        if (Object.keys(linkedinOptions).length > 0) {
+                            options.body.linkedin_options = linkedinOptions;
+                        }
+                    }
                     // Add content_category_id when publish type is content_category
                     if (publishType === 'content_category' && contentCategoryId) {
                         options.body.content_category_id = contentCategoryId;
@@ -1953,6 +2154,31 @@ class ContentStudio {
                         if (approvalNotes) {
                             options.body.approval.notes = approvalNotes;
                         }
+                    }
+                    // Approval workflow (multi-level) — mutually exclusive with the legacy approval above
+                    const useApprovalWorkflow = this.getNodeParameter('useApprovalWorkflow', i, false);
+                    if (useApprovalWorkflow) {
+                        if (sendForApproval) {
+                            throw new Error('Use either "Send for Approval" (legacy) or "Use Approval Workflow" — they are mutually exclusive');
+                        }
+                        const workflowId = (this.getNodeParameter('approvalWorkflowId', i, '') || '').trim();
+                        const workflowAction = operation === 'update'
+                            ? (this.getNodeParameter('approvalWorkflowAction', i, '') || '').trim()
+                            : '';
+                        const workflowNotes = (this.getNodeParameter('approvalWorkflowNotes', i, '') || '').trim();
+                        if (workflowId && workflowAction) {
+                            throw new Error('Provide exactly one of Approval Workflow (attach) or Workflow Action — not both');
+                        }
+                        if (!workflowId && !workflowAction) {
+                            throw new Error('Approval Workflow requires either a workflow to attach or a Workflow Action');
+                        }
+                        const approvalWorkflow = workflowId
+                            ? { workflow_id: workflowId }
+                            : { workflow_action: workflowAction };
+                        if (workflowNotes) {
+                            approvalWorkflow.notes = workflowNotes;
+                        }
+                        options.body.approval_workflow = approvalWorkflow;
                     }
                     // Labels (handles string, array, JSON string from n8n expressions)
                     const labelsParam = this.getNodeParameter('labels', i, '');

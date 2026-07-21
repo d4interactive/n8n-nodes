@@ -302,6 +302,32 @@ export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promi
   }
 }
 
+export async function getApprovalWorkflows(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows`,
+      qs: { page: 1, per_page: 100 },
+    });
+    const list: any[] = extractListFromBody(body);
+    return list
+      .map((w: any) => {
+        const id = w?._id;
+        if (!id) return null;
+        const name = w?.name || String(id);
+        const label = w?.is_default ? `${name} (default)` : name;
+        return { name: label, value: String(id) } as INodePropertyOptions;
+      })
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    throw new Error(`Failed to load Approval Workflows: (${statusCode}) ${apiMessage}`);
+  }
+}
+
 export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const baseRoot = normalizeBase(BASE_URL);
