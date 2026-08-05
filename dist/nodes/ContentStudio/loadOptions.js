@@ -7,6 +7,7 @@ exports.getPosts = getPosts;
 exports.getAccounts = getAccounts;
 exports.getContentCategories = getContentCategories;
 exports.getFacebookBackgrounds = getFacebookBackgrounds;
+exports.getApprovalWorkflows = getApprovalWorkflows;
 exports.getTeamMembers = getTeamMembers;
 const utils_1 = require("./utils");
 const ContentStudio_credentials_1 = require("../../credentials/ContentStudio.credentials");
@@ -317,6 +318,34 @@ async function getFacebookBackgrounds() {
     catch (error) {
         const { statusCode, apiMessage } = extractHttpErrorDetails(error);
         throw new Error(`Failed to load Facebook Text Backgrounds: (${statusCode}) ${apiMessage}`);
+    }
+}
+async function getApprovalWorkflows() {
+    try {
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
+        if (!workspaceId)
+            return [];
+        const body = await apiRequest(this, {
+            method: 'GET',
+            url: `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows`,
+            qs: { page: 1, per_page: 100 },
+        });
+        const list = extractListFromBody(body);
+        return list
+            .map((w) => {
+            const id = w === null || w === void 0 ? void 0 : w._id;
+            if (!id)
+                return null;
+            const name = (w === null || w === void 0 ? void 0 : w.name) || String(id);
+            const label = (w === null || w === void 0 ? void 0 : w.is_default) ? `${name} (default)` : name;
+            return { name: label, value: String(id) };
+        })
+            .filter((o) => !!o);
+    }
+    catch (error) {
+        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+        throw new Error(`Failed to load Approval Workflows: (${statusCode}) ${apiMessage}`);
     }
 }
 async function getTeamMembers() {
