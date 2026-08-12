@@ -1166,8 +1166,8 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
       },
       {
-        displayName: 'Overrides (JSON)',
-        name: 'overrides',
+        displayName: 'Platform Overrides (JSON)',
+        name: 'platformOverrides',
         type: 'json',
         default: '{}',
         description:
@@ -2205,10 +2205,10 @@ export class ContentStudio implements INodeType {
           }
         }
 
-        // Per-platform content overrides (overrides.<platform>.content.{text,post_type,media})
-        const overrides = parseJsonObject(this.getNodeParameter('overrides', i, '{}') as unknown, 'Overrides');
-        if (Object.keys(overrides).length > 0) {
-          (options.body as any).overrides = overrides;
+        // Per-platform content overrides (platform_overrides.<platform>.content.{text,post_type,media})
+        const platformOverrides = parseJsonObject(this.getNodeParameter('platformOverrides', i, '{}') as unknown, 'Platform Overrides');
+        if (Object.keys(platformOverrides).length > 0) {
+          (options.body as any).platform_overrides = platformOverrides;
         }
 
         // LinkedIn options (title and/or poll) — gated by the LinkedIn options toggle

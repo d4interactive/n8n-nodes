@@ -1120,8 +1120,8 @@ class ContentStudio {
                     displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
                 {
-                    displayName: 'Overrides (JSON)',
-                    name: 'overrides',
+                    displayName: 'Platform Overrides (JSON)',
+                    name: 'platformOverrides',
                     type: 'json',
                     default: '{}',
                     description: 'Per-platform content overrides, keyed by platform name: facebook, instagram, twitter, linkedin, pinterest, youtube, tiktok, gmb, tumblr, threads, bluesky, telegram. ' +
@@ -2136,10 +2136,10 @@ class ContentStudio {
                             };
                         }
                     }
-                    // Per-platform content overrides (overrides.<platform>.content.{text,post_type,media})
-                    const overrides = (0, utils_1.parseJsonObject)(this.getNodeParameter('overrides', i, '{}'), 'Overrides');
-                    if (Object.keys(overrides).length > 0) {
-                        options.body.overrides = overrides;
+                    // Per-platform content overrides (platform_overrides.<platform>.content.{text,post_type,media})
+                    const platformOverrides = (0, utils_1.parseJsonObject)(this.getNodeParameter('platformOverrides', i, '{}'), 'Platform Overrides');
+                    if (Object.keys(platformOverrides).length > 0) {
+                        options.body.platform_overrides = platformOverrides;
                     }
                     // LinkedIn options (title and/or poll) — gated by the LinkedIn options toggle
                     const hasLinkedinOptions = this.getNodeParameter('hasLinkedinOptions', i, false);
