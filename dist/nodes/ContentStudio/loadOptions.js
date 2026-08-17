@@ -278,14 +278,19 @@ async function getSchedulingAccounts() {
             qs: { page: 1, per_page: 100 },
         });
         const list = extractListFromBody(body);
+        const supported = new Set(utils_1.SCHEDULING_PLATFORMS);
         return list
             .map((a) => {
+            const platform = String((a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '').toLowerCase();
+            // Blog-style connections (wordpress, medium, …) are not analysed by the
+            // optimal-times endpoint, so keep them out of the picker entirely.
+            if (!supported.has(platform))
+                return null;
             const option = formatAccountOption(a);
-            const platform = ((a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '').toLowerCase();
+            if (!option)
+                return null;
             // Encode the platform so the optimal-times request can build entities
             // ({ id, type }) without a second lookup.
-            if (!option || !platform)
-                return option;
             return { ...option, value: `${platform}:${option.value}` };
         })
             .filter((o) => !!o);

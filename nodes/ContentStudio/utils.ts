@@ -122,11 +122,32 @@ export function parseSchedulingEntityRefs(val: unknown): SchedulingEntityRef[] {
 
 type OptimalTimeSlot = Record<string, any>;
 
+// The API documents slot hours as a plain hour-of-day string ("14"). Accept the
+// documented shape plus "14:00" and a 12-hour "2 PM" variant, so an unexpected
+// format degrades to no scheduled_at rather than silently scheduling 12 hours off.
+export function parseSlotHour(time: unknown): number | undefined {
+  const raw = String(time ?? '').trim();
+  if (!raw) return undefined;
+  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!match) return undefined;
+  let hour = parseInt(match[1], 10);
+  if (!Number.isFinite(hour)) return undefined;
+  const meridiem = match[3]?.toLowerCase();
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return undefined;
+    if (meridiem === 'pm' && hour !== 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+  }
+  if (hour < 0 || hour > 23) return undefined;
+  return hour;
+}
+
 function toScheduledAt(date: unknown, time: unknown): string | undefined {
-  const day = typeof date === 'string' ? date.trim() : '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined;
-  const hour = parseInt(String(time ?? '').trim(), 10);
-  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return undefined;
+  // Tolerate a full ISO timestamp by taking the leading calendar date
+  const day = (typeof date === 'string' ? date.trim() : '').match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (!day) return undefined;
+  const hour = parseSlotHour(time);
+  if (hour === undefined) return undefined;
   return `${day} ${String(hour).padStart(2, '0')}:00:00`;
 }
 
@@ -136,7 +157,7 @@ function mapRecommendation(
   scope: string,
   extra: Record<string, any>,
 ): OptimalTimeSlot {
-  const hour = parseInt(String(recommendation?.time ?? '').trim(), 10);
+  const hour = parseSlotHour(recommendation?.time);
   const scheduledAt = toScheduledAt(recommendation?.date, recommendation?.time);
   return {
     scope,
@@ -145,7 +166,7 @@ function mapRecommendation(
     day: recommendation?.day ?? null,
     date: recommendation?.date ?? null,
     time: recommendation?.time ?? null,
-    hour: Number.isFinite(hour) ? hour : null,
+    hour: hour ?? null,
     score: recommendation?.score ?? null,
     ...(recommendation?.platform_breakdown ? { platform_breakdown: recommendation.platform_breakdown } : {}),
     ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),

@@ -2310,6 +2310,9 @@ class ContentStudio {
                             if (!platform) {
                                 throw new Error(`Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`);
                             }
+                            if (!utils_1.SCHEDULING_PLATFORMS.includes(platform)) {
+                                throw new Error(`Account "${entity.id}" is a ${platform} connection, which the best-times analysis does not support. Supported platforms: ${utils_1.SCHEDULING_PLATFORMS.join(', ')}.`);
+                            }
                             entity.type = platform;
                         }
                     }

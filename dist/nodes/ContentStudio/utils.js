@@ -8,6 +8,7 @@ exports.parseJsonObject = parseJsonObject;
 exports.parseMaybeObject = parseMaybeObject;
 exports.parseCommaSeparated = parseCommaSeparated;
 exports.parseSchedulingEntityRefs = parseSchedulingEntityRefs;
+exports.parseSlotHour = parseSlotHour;
 exports.flattenOptimalTimes = flattenOptimalTimes;
 exports.parseMediaImages = parseMediaImages;
 exports.parseMediaVideo = parseMediaVideo;
@@ -136,32 +137,61 @@ function parseSchedulingEntityRefs(val) {
         return { id: raw };
     });
 }
-function toScheduledAt(date, time) {
-    const day = typeof date === 'string' ? date.trim() : '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day))
+// The API documents slot hours as a plain hour-of-day string ("14"). Accept the
+// documented shape plus "14:00" and a 12-hour "2 PM" variant, so an unexpected
+// format degrades to no scheduled_at rather than silently scheduling 12 hours off.
+function parseSlotHour(time) {
+    var _a;
+    const raw = String(time !== null && time !== void 0 ? time : '').trim();
+    if (!raw)
         return undefined;
-    const hour = parseInt(String(time !== null && time !== void 0 ? time : '').trim(), 10);
-    if (!Number.isFinite(hour) || hour < 0 || hour > 23)
+    const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!match)
+        return undefined;
+    let hour = parseInt(match[1], 10);
+    if (!Number.isFinite(hour))
+        return undefined;
+    const meridiem = (_a = match[3]) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+    if (meridiem) {
+        if (hour < 1 || hour > 12)
+            return undefined;
+        if (meridiem === 'pm' && hour !== 12)
+            hour += 12;
+        if (meridiem === 'am' && hour === 12)
+            hour = 0;
+    }
+    if (hour < 0 || hour > 23)
+        return undefined;
+    return hour;
+}
+function toScheduledAt(date, time) {
+    var _a;
+    // Tolerate a full ISO timestamp by taking the leading calendar date
+    const day = (_a = (typeof date === 'string' ? date.trim() : '').match(/^(\d{4}-\d{2}-\d{2})/)) === null || _a === void 0 ? void 0 : _a[1];
+    if (!day)
+        return undefined;
+    const hour = parseSlotHour(time);
+    if (hour === undefined)
         return undefined;
     return `${day} ${String(hour).padStart(2, '0')}:00:00`;
 }
 function mapRecommendation(recommendation, meta, scope, extra) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
-    const hour = parseInt(String((_a = recommendation === null || recommendation === void 0 ? void 0 : recommendation.time) !== null && _a !== void 0 ? _a : '').trim(), 10);
+    var _a, _b, _c, _d, _e, _f, _g;
+    const hour = parseSlotHour(recommendation === null || recommendation === void 0 ? void 0 : recommendation.time);
     const scheduledAt = toScheduledAt(recommendation === null || recommendation === void 0 ? void 0 : recommendation.date, recommendation === null || recommendation === void 0 ? void 0 : recommendation.time);
     return {
         scope,
         ...extra,
-        rank: (_b = recommendation === null || recommendation === void 0 ? void 0 : recommendation.rank) !== null && _b !== void 0 ? _b : null,
-        day: (_c = recommendation === null || recommendation === void 0 ? void 0 : recommendation.day) !== null && _c !== void 0 ? _c : null,
-        date: (_d = recommendation === null || recommendation === void 0 ? void 0 : recommendation.date) !== null && _d !== void 0 ? _d : null,
-        time: (_e = recommendation === null || recommendation === void 0 ? void 0 : recommendation.time) !== null && _e !== void 0 ? _e : null,
-        hour: Number.isFinite(hour) ? hour : null,
-        score: (_f = recommendation === null || recommendation === void 0 ? void 0 : recommendation.score) !== null && _f !== void 0 ? _f : null,
+        rank: (_a = recommendation === null || recommendation === void 0 ? void 0 : recommendation.rank) !== null && _a !== void 0 ? _a : null,
+        day: (_b = recommendation === null || recommendation === void 0 ? void 0 : recommendation.day) !== null && _b !== void 0 ? _b : null,
+        date: (_c = recommendation === null || recommendation === void 0 ? void 0 : recommendation.date) !== null && _c !== void 0 ? _c : null,
+        time: (_d = recommendation === null || recommendation === void 0 ? void 0 : recommendation.time) !== null && _d !== void 0 ? _d : null,
+        hour: hour !== null && hour !== void 0 ? hour : null,
+        score: (_e = recommendation === null || recommendation === void 0 ? void 0 : recommendation.score) !== null && _e !== void 0 ? _e : null,
         ...((recommendation === null || recommendation === void 0 ? void 0 : recommendation.platform_breakdown) ? { platform_breakdown: recommendation.platform_breakdown } : {}),
         ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
-        timezone: (_g = meta === null || meta === void 0 ? void 0 : meta.timezone) !== null && _g !== void 0 ? _g : null,
-        generated_at: (_h = meta === null || meta === void 0 ? void 0 : meta.generated_at) !== null && _h !== void 0 ? _h : null,
+        timezone: (_f = meta === null || meta === void 0 ? void 0 : meta.timezone) !== null && _f !== void 0 ? _f : null,
+        generated_at: (_g = meta === null || meta === void 0 ? void 0 : meta.generated_at) !== null && _g !== void 0 ? _g : null,
     };
 }
 // Flatten an optimal-times response into one item per recommended slot, best-first.

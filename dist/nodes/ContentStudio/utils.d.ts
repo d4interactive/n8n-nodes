@@ -11,6 +11,7 @@ export type SchedulingEntityRef = {
 };
 export declare function parseSchedulingEntityRefs(val: unknown): SchedulingEntityRef[];
 type OptimalTimeSlot = Record<string, any>;
+export declare function parseSlotHour(time: unknown): number | undefined;
 export declare function flattenOptimalTimes(response: any, includeIndividual: boolean): OptimalTimeSlot[];
 export declare function parseMediaImages(val: unknown): string[];
 export declare function parseMediaVideo(val: unknown): string | undefined;

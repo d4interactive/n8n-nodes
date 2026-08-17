@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
-import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseSchedulingEntityRefs, flattenOptimalTimes } from './utils';
+import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseSchedulingEntityRefs, flattenOptimalTimes, SCHEDULING_PLATFORMS } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudio.credentials';
 
 const CREDENTIALS_TYPE = 'contentStudio';
@@ -2393,6 +2393,11 @@ export class ContentStudio implements INodeType {
             if (!platform) {
               throw new Error(
                 `Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`,
+              );
+            }
+            if (!SCHEDULING_PLATFORMS.includes(platform)) {
+              throw new Error(
+                `Account "${entity.id}" is a ${platform} connection, which the best-times analysis does not support. Supported platforms: ${SCHEDULING_PLATFORMS.join(', ')}.`,
               );
             }
             entity.type = platform;
