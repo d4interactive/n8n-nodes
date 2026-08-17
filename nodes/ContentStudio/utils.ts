@@ -83,6 +83,116 @@ export function parseCommaSeparated(val: unknown): string[] {
   return [];
 }
 
+// Platforms accepted by the scheduling optimal-times endpoint (entities[].type)
+export const SCHEDULING_PLATFORMS = [
+  'facebook',
+  'instagram',
+  'linkedin',
+  'twitter',
+  'tiktok',
+  'youtube',
+  'pinterest',
+  'threads',
+  'gmb',
+  'tumblr',
+  'bluesky',
+  'telegram',
+];
+
+export type SchedulingEntityRef = { id: string; type?: string };
+
+// Parse the account picker values used by the Scheduling resource.
+// The dropdown encodes options as "platform:accountId" so the platform is known
+// without an extra lookup; plain account ids (e.g. from expressions) are kept
+// without a type and resolved against the accounts list at execution time.
+export function parseSchedulingEntityRefs(val: unknown): SchedulingEntityRef[] {
+  const platforms = new Set(SCHEDULING_PLATFORMS);
+  return parseCommaSeparated(val).map((raw) => {
+    const separatorIndex = raw.indexOf(':');
+    if (separatorIndex > 0) {
+      const type = raw.slice(0, separatorIndex).trim().toLowerCase();
+      const id = raw.slice(separatorIndex + 1).trim();
+      if (id && platforms.has(type)) {
+        return { id, type };
+      }
+    }
+    return { id: raw };
+  });
+}
+
+type OptimalTimeSlot = Record<string, any>;
+
+function toScheduledAt(date: unknown, time: unknown): string | undefined {
+  const day = typeof date === 'string' ? date.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined;
+  const hour = parseInt(String(time ?? '').trim(), 10);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return undefined;
+  return `${day} ${String(hour).padStart(2, '0')}:00:00`;
+}
+
+function mapRecommendation(
+  recommendation: any,
+  meta: Record<string, any>,
+  scope: string,
+  extra: Record<string, any>,
+): OptimalTimeSlot {
+  const hour = parseInt(String(recommendation?.time ?? '').trim(), 10);
+  const scheduledAt = toScheduledAt(recommendation?.date, recommendation?.time);
+  return {
+    scope,
+    ...extra,
+    rank: recommendation?.rank ?? null,
+    day: recommendation?.day ?? null,
+    date: recommendation?.date ?? null,
+    time: recommendation?.time ?? null,
+    hour: Number.isFinite(hour) ? hour : null,
+    score: recommendation?.score ?? null,
+    ...(recommendation?.platform_breakdown ? { platform_breakdown: recommendation.platform_breakdown } : {}),
+    ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
+    timezone: meta?.timezone ?? null,
+    generated_at: meta?.generated_at ?? null,
+  };
+}
+
+// Flatten an optimal-times response into one item per recommended slot, best-first.
+// Slots carry a ready-to-use `scheduled_at` so they can be fed straight into a
+// later Post → Create operation. Returns a single meta item when nothing ranked.
+export function flattenOptimalTimes(response: any, includeIndividual: boolean): OptimalTimeSlot[] {
+  const meta = (response?.meta && typeof response.meta === 'object') ? response.meta : {};
+  const slots: OptimalTimeSlot[] = [];
+
+  const globalRecommendations = response?.global?.top_recommendations;
+  if (Array.isArray(globalRecommendations)) {
+    for (const recommendation of globalRecommendations) {
+      slots.push(mapRecommendation(recommendation, meta, 'global', {}));
+    }
+  }
+
+  const individual = response?.individual;
+  if (includeIndividual && individual && typeof individual === 'object') {
+    for (const [accountId, account] of Object.entries(individual as Record<string, any>)) {
+      const recommendations = account?.top_recommendations;
+      if (!Array.isArray(recommendations)) continue;
+      for (const recommendation of recommendations) {
+        slots.push(mapRecommendation(recommendation, meta, 'account', {
+          account_id: accountId,
+          platform: account?.platform ?? null,
+          source: account?.source ?? null,
+        }));
+      }
+    }
+  }
+
+  if (slots.length === 0) {
+    return [{
+      ...meta,
+      message: 'No optimal posting times were returned. The analysed accounts may not have enough publishing history yet — check meta.missing_entities and meta.warnings.',
+    }];
+  }
+
+  return slots;
+}
+
 // Media images parser supporting new fixedCollection format and legacy string JSON
 export function parseMediaImages(val: unknown): string[] {
   if (val && typeof val === 'object' && 'images' in (val as any)) {

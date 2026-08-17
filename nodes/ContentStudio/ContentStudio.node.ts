@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows } from './loadOptions';
-import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject } from './utils';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
+import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseSchedulingEntityRefs, flattenOptimalTimes } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudio.credentials';
 
 const CREDENTIALS_TYPE = 'contentStudio';
@@ -205,6 +205,7 @@ export class ContentStudio implements INodeType {
           { name: 'Label', value: 'label' },
           { name: 'Media', value: 'media' },
           { name: 'Post', value: 'post' },
+          { name: 'Scheduling', value: 'scheduling' },
           { name: 'Social Account', value: 'socialAccount' },
           { name: 'Team Member', value: 'teamMember' },
           { name: 'Workspace', value: 'workspace' },
@@ -352,6 +353,17 @@ export class ContentStudio implements INodeType {
         ],
         default: 'list',
       },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['scheduling'] } },
+        options: [
+          { name: 'Best Times to Post', value: 'bestTimes', action: 'Get the best times to post' },
+        ],
+        default: 'bestTimes',
+      },
 
       // Common params
       {
@@ -364,7 +376,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'],
+            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'scheduling'],
           },
         },
       },
@@ -1550,6 +1562,57 @@ export class ContentStudio implements INodeType {
         description: 'Campaign ID to assign the post to. Get the ID from the Campaign resource.',
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
       },
+
+      // Scheduling — best times to post
+      {
+        displayName:
+          'Recommended times are always returned in the workspace timezone (echoed as "timezone" on every slot). The API has no period or timezone parameter — it analyses the accounts\' full available publishing history.',
+        name: 'bestTimesNotice',
+        type: 'notice',
+        default: '',
+        displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+      },
+      {
+        displayName: 'Accounts',
+        name: 'bestTimesAccounts',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getSchedulingAccounts', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        description: 'Accounts to analyse. Leave empty to analyse every account connected to the workspace.',
+        displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+      },
+      {
+        displayName: 'Output',
+        name: 'bestTimesOutput',
+        type: 'options',
+        options: [
+          { name: 'Ranked Slots (Pooled)', value: 'global' },
+          { name: 'Ranked Slots (Pooled + Per Account)', value: 'all' },
+          { name: 'Full Response', value: 'raw' },
+        ],
+        default: 'global',
+        description:
+          'Ranked Slots returns one item per recommended time, best-first, each with a "scheduled_at" value (YYYY-MM-DD HH:MM:SS) you can feed straight into Post → Create. Full Response returns the raw API payload including the heatmap matrix.',
+        displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+      },
+      {
+        displayName: 'Pooled Slots',
+        name: 'bestTimesGlobalSlots',
+        type: 'number',
+        default: 5,
+        typeOptions: { minValue: 1, maxValue: 24 },
+        description: 'How many recommended times to return in the pooled view across all analysed accounts',
+        displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+      },
+      {
+        displayName: 'Per Account Slots',
+        name: 'bestTimesPerAccountSlots',
+        type: 'number',
+        default: 3,
+        typeOptions: { minValue: 1, maxValue: 24 },
+        description: 'How many recommended times to return for each analysed account',
+        displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+      },
     ],
   };
 
@@ -1565,6 +1628,7 @@ export class ContentStudio implements INodeType {
       getTeamMembers,
       getFacebookBackgrounds,
       getApprovalWorkflows,
+      getSchedulingAccounts,
     },
   };
 
@@ -1580,6 +1644,9 @@ export class ContentStudio implements INodeType {
       const operation = this.getNodeParameter('operation', i) as string;
 
       const baseRoot = normalizeBase(BASE_URL);
+
+      // Set by operations that reshape the API payload into multiple output items
+      let transformResponse: ((response: any) => Array<Record<string, any>>) | undefined;
 
       // Base request options
       const options: IHttpRequestOptions = {
@@ -2294,12 +2361,70 @@ export class ContentStudio implements INodeType {
         options.body = approvalBody;
       }
 
+      if (resource === 'scheduling' && operation === 'bestTimes') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const globalSlots = this.getNodeParameter('bestTimesGlobalSlots', i, 5) as number;
+        const perAccountSlots = this.getNodeParameter('bestTimesPerAccountSlots', i, 3) as number;
+        const output = (this.getNodeParameter('bestTimesOutput', i, 'global') as string) || 'global';
+
+        const entities = parseSchedulingEntityRefs(this.getNodeParameter('bestTimesAccounts', i, []) as unknown);
+
+        // Account ids typed by hand or supplied by an expression arrive without a
+        // platform; resolve those against the workspace's connected accounts.
+        const unresolved = entities.filter((entity) => !entity.type);
+        if (unresolved.length > 0) {
+          const accountsResponse = await this.helpers.httpRequestWithAuthentication.call(this, CREDENTIALS_TYPE, {
+            method: 'GET',
+            url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+            qs: { page: 1, per_page: 100 },
+            json: true,
+            headers: { accept: 'application/json' },
+            timeout: 60000,
+          });
+          const accountList: any[] = Array.isArray(accountsResponse) ? accountsResponse : (accountsResponse?.data || []);
+          const platformById = new Map<string, string>();
+          for (const account of accountList) {
+            const id = account?._id;
+            const platform = String(account?.platform || account?.provider || '').toLowerCase();
+            if (id && platform) platformById.set(String(id), platform);
+          }
+          for (const entity of unresolved) {
+            const platform = platformById.get(entity.id);
+            if (!platform) {
+              throw new Error(
+                `Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`,
+              );
+            }
+            entity.type = platform;
+          }
+        }
+
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/scheduling/optimal-times`;
+        options.body = {
+          global_slots: globalSlots,
+          per_account_slots: perAccountSlots,
+          // Omitting entities makes the API analyse every connected account
+          ...(entities.length > 0 ? { entities: entities.map(({ id, type }) => ({ id, type })) } : {}),
+        };
+
+        if (output !== 'raw') {
+          transformResponse = (body) => flattenOptimalTimes(body, output === 'all');
+        }
+      }
+
       const response = await this.helpers.httpRequestWithAuthentication.call(
         this,
         CREDENTIALS_TYPE,
         options,
       );
-      returnData.push({ json: response, pairedItem: { item: i } });
+      if (transformResponse) {
+        for (const json of transformResponse(response)) {
+          returnData.push({ json, pairedItem: { item: i } });
+        }
+      } else {
+        returnData.push({ json: response, pairedItem: { item: i } });
+      }
       } catch (error) {
         if (this.continueOnFail()) {
           const message = (error as any)?.message || String(error);

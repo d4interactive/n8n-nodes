@@ -37,6 +37,7 @@ The API base URL is built into the node, so users only need to provide their API
 - **Workspace**: List, create, update, and delete workspaces
 - **Social Account**: List social accounts
 - **Post**: Create, list, and delete posts
+- **Scheduling**: Get the best times to post
 
 ### Post Operations
 
@@ -54,6 +55,18 @@ The API base URL is built into the node, so users only need to provide their API
 #### Delete Post
 - **Workspace**: Select workspace
 - **Post ID**: Enter post ID to delete
+
+### Scheduling Operations
+
+#### Best Times to Post
+- **Workspace**: Select workspace
+- **Accounts**: Optional — leave empty to analyse every connected account
+- **Output**: Ranked slots (pooled, or pooled + per account) or the full API response
+- **Pooled Slots / Per Account Slots**: How many recommended times to return (1–24)
+
+Each ranked slot includes a `scheduled_at` value in `YYYY-MM-DD HH:MM:SS` format that
+can be wired straight into the **Scheduled At** field of a later Create Post operation.
+Times are always in the workspace timezone, returned on each slot as `timezone`.
 
 ## Features
 

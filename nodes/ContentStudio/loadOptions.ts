@@ -249,6 +249,37 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
   }
 }
 
+export async function getSchedulingAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  let workspaceId = '';
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+      qs: { page: 1, per_page: 100 },
+    });
+    const list: any[] = extractListFromBody(body);
+    return list
+      .map((a: any) => {
+        const option = formatAccountOption(a);
+        const platform = (a?.platform || a?.provider || '').toLowerCase();
+        // Encode the platform so the optimal-times request can build entities
+        // ({ id, type }) without a second lookup.
+        if (!option || !platform) return option;
+        return { ...option, value: `${platform}:${option.value}` } as INodePropertyOptions;
+      })
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    const hint = statusCode === 403
+      ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
+      : '';
+    throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+  }
+}
+
 export async function getContentCategories(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   try {
     const baseRoot = normalizeBase(BASE_URL);

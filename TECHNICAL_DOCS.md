@@ -47,6 +47,9 @@ The codebase follows a modular approach for better maintainability:
 - **create**: Creates new posts with content, media, accounts, and scheduling
 - **delete**: Deletes existing posts by ID
 
+#### Scheduling Resource
+- **bestTimes**: Returns the best times to post for the workspace's connected accounts
+
 ## API Integration
 
 ### Authentication
@@ -201,6 +204,9 @@ ln -sfn /var/www/html/n8n-nodes-contentstudio ~/.n8n/nodes/n8n-nodes-contentstud
 
 ### Social Accounts
 - `GET /v1/workspaces/{id}/accounts` - List social accounts
+
+### Scheduling
+- `POST /v1/workspaces/{id}/scheduling/optimal-times` - Best times to post
 
 ### Authentication
 - `GET /v1/me` - Validate API key

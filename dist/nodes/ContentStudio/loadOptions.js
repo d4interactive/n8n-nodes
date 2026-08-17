@@ -5,6 +5,7 @@ exports.getFirstCommentAccounts = getFirstCommentAccounts;
 exports.getWorkspaces = getWorkspaces;
 exports.getPosts = getPosts;
 exports.getAccounts = getAccounts;
+exports.getSchedulingAccounts = getSchedulingAccounts;
 exports.getContentCategories = getContentCategories;
 exports.getFacebookBackgrounds = getFacebookBackgrounds;
 exports.getApprovalWorkflows = getApprovalWorkflows;
@@ -254,6 +255,39 @@ async function getAccounts() {
         const list = (body === null || body === void 0 ? void 0 : body.data) || [];
         return list
             .map(formatAccountOption)
+            .filter((o) => !!o);
+    }
+    catch (error) {
+        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+        const hint = statusCode === 403
+            ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
+            : '';
+        throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+    }
+}
+async function getSchedulingAccounts() {
+    let workspaceId = '';
+    try {
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
+        if (!workspaceId)
+            return [];
+        const body = await apiRequest(this, {
+            method: 'GET',
+            url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+            qs: { page: 1, per_page: 100 },
+        });
+        const list = extractListFromBody(body);
+        return list
+            .map((a) => {
+            const option = formatAccountOption(a);
+            const platform = ((a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '').toLowerCase();
+            // Encode the platform so the optimal-times request can build entities
+            // ({ id, type }) without a second lookup.
+            if (!option || !platform)
+                return option;
+            return { ...option, value: `${platform}:${option.value}` };
+        })
             .filter((o) => !!o);
     }
     catch (error) {
