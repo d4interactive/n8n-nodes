@@ -179,6 +179,7 @@ class ContentStudio {
                         { name: 'Label', value: 'label' },
                         { name: 'Media', value: 'media' },
                         { name: 'Post', value: 'post' },
+                        { name: 'Scheduling', value: 'scheduling' },
                         { name: 'Social Account', value: 'socialAccount' },
                         { name: 'Team Member', value: 'teamMember' },
                         { name: 'Workspace', value: 'workspace' },
@@ -325,6 +326,17 @@ class ContentStudio {
                     ],
                     default: 'list',
                 },
+                {
+                    displayName: 'Operation',
+                    name: 'operation',
+                    type: 'options',
+                    noDataExpression: true,
+                    displayOptions: { show: { resource: ['scheduling'] } },
+                    options: [
+                        { name: 'Best Times to Post', value: 'bestTimes', action: 'Get the best times to post' },
+                    ],
+                    default: 'bestTimes',
+                },
                 // Common params
                 {
                     displayName: 'Workspace ID',
@@ -336,7 +348,7 @@ class ContentStudio {
                     description: 'Workspace ID',
                     displayOptions: {
                         show: {
-                            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'],
+                            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'scheduling'],
                         },
                     },
                 },
@@ -1501,6 +1513,54 @@ class ContentStudio {
                     description: 'Campaign ID to assign the post to. Get the ID from the Campaign resource.',
                     displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
                 },
+                // Scheduling — best times to post
+                {
+                    displayName: 'Recommended times are always returned in the workspace timezone (echoed as "timezone" on every slot). The API has no period or timezone parameter — it analyses the accounts\' full available publishing history.',
+                    name: 'bestTimesNotice',
+                    type: 'notice',
+                    default: '',
+                    displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+                },
+                {
+                    displayName: 'Accounts',
+                    name: 'bestTimesAccounts',
+                    type: 'multiOptions',
+                    typeOptions: { loadOptionsMethod: 'getSchedulingAccounts', loadOptionsDependsOn: ['workspaceId'] },
+                    default: [],
+                    description: 'Accounts to analyse. Leave empty to analyse every account connected to the workspace.',
+                    displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+                },
+                {
+                    displayName: 'Output',
+                    name: 'bestTimesOutput',
+                    type: 'options',
+                    options: [
+                        { name: 'Ranked Slots (Pooled)', value: 'global' },
+                        { name: 'Ranked Slots (Pooled + Per Account)', value: 'all' },
+                        { name: 'Full Response', value: 'raw' },
+                    ],
+                    default: 'global',
+                    description: 'Ranked Slots returns one item per recommended time, best-first, each with a "scheduled_at" value (YYYY-MM-DD HH:MM:SS) you can feed straight into Post → Create. Full Response returns the raw API payload including the heatmap matrix.',
+                    displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+                },
+                {
+                    displayName: 'Pooled Slots',
+                    name: 'bestTimesGlobalSlots',
+                    type: 'number',
+                    default: 5,
+                    typeOptions: { minValue: 1, maxValue: 24 },
+                    description: 'How many recommended times to return in the pooled view across all analysed accounts',
+                    displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+                },
+                {
+                    displayName: 'Per Account Slots',
+                    name: 'bestTimesPerAccountSlots',
+                    type: 'number',
+                    default: 3,
+                    typeOptions: { minValue: 1, maxValue: 24 },
+                    description: 'How many recommended times to return for each analysed account',
+                    displayOptions: { show: { resource: ['scheduling'], operation: ['bestTimes'] } },
+                },
             ],
         };
         // Dynamic dropdowns
@@ -1515,6 +1575,7 @@ class ContentStudio {
                 getTeamMembers: loadOptions_1.getTeamMembers,
                 getFacebookBackgrounds: loadOptions_1.getFacebookBackgrounds,
                 getApprovalWorkflows: loadOptions_1.getApprovalWorkflows,
+                getSchedulingAccounts: loadOptions_1.getSchedulingAccounts,
             },
         };
     }
@@ -1527,6 +1588,8 @@ class ContentStudio {
                 const resource = this.getNodeParameter('resource', i);
                 const operation = this.getNodeParameter('operation', i);
                 const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+                // Set by operations that reshape the API payload into multiple output items
+                let transformResponse;
                 // Base request options
                 const options = {
                     method: 'GET',
@@ -2216,8 +2279,64 @@ class ContentStudio {
                     }
                     options.body = approvalBody;
                 }
+                if (resource === 'scheduling' && operation === 'bestTimes') {
+                    const workspaceId = this.getNodeParameter('workspaceId', i);
+                    const globalSlots = this.getNodeParameter('bestTimesGlobalSlots', i, 5);
+                    const perAccountSlots = this.getNodeParameter('bestTimesPerAccountSlots', i, 3);
+                    const output = this.getNodeParameter('bestTimesOutput', i, 'global') || 'global';
+                    const entities = (0, utils_1.parseSchedulingEntityRefs)(this.getNodeParameter('bestTimesAccounts', i, []));
+                    // Account ids typed by hand or supplied by an expression arrive without a
+                    // platform; resolve those against the workspace's connected accounts.
+                    const unresolved = entities.filter((entity) => !entity.type);
+                    if (unresolved.length > 0) {
+                        const accountsResponse = await this.helpers.httpRequestWithAuthentication.call(this, CREDENTIALS_TYPE, {
+                            method: 'GET',
+                            url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+                            qs: { page: 1, per_page: 100 },
+                            json: true,
+                            headers: { accept: 'application/json' },
+                            timeout: 60000,
+                        });
+                        const accountList = Array.isArray(accountsResponse) ? accountsResponse : ((accountsResponse === null || accountsResponse === void 0 ? void 0 : accountsResponse.data) || []);
+                        const platformById = new Map();
+                        for (const account of accountList) {
+                            const id = account === null || account === void 0 ? void 0 : account._id;
+                            const platform = String((account === null || account === void 0 ? void 0 : account.platform) || (account === null || account === void 0 ? void 0 : account.provider) || '').toLowerCase();
+                            if (id && platform)
+                                platformById.set(String(id), platform);
+                        }
+                        for (const entity of unresolved) {
+                            const platform = platformById.get(entity.id);
+                            if (!platform) {
+                                throw new Error(`Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`);
+                            }
+                            if (!utils_1.SCHEDULING_PLATFORMS.includes(platform)) {
+                                throw new Error(`Account "${entity.id}" is a ${platform} connection, which the best-times analysis does not support. Supported platforms: ${utils_1.SCHEDULING_PLATFORMS.join(', ')}.`);
+                            }
+                            entity.type = platform;
+                        }
+                    }
+                    options.method = 'POST';
+                    options.url = `${baseRoot}/v1/workspaces/${workspaceId}/scheduling/optimal-times`;
+                    options.body = {
+                        global_slots: globalSlots,
+                        per_account_slots: perAccountSlots,
+                        // Omitting entities makes the API analyse every connected account
+                        ...(entities.length > 0 ? { entities: entities.map(({ id, type }) => ({ id, type })) } : {}),
+                    };
+                    if (output !== 'raw') {
+                        transformResponse = (body) => (0, utils_1.flattenOptimalTimes)(body, output === 'all');
+                    }
+                }
                 const response = await this.helpers.httpRequestWithAuthentication.call(this, CREDENTIALS_TYPE, options);
-                returnData.push({ json: response, pairedItem: { item: i } });
+                if (transformResponse) {
+                    for (const json of transformResponse(response)) {
+                        returnData.push({ json, pairedItem: { item: i } });
+                    }
+                }
+                else {
+                    returnData.push({ json: response, pairedItem: { item: i } });
+                }
             }
             catch (error) {
                 if (this.continueOnFail()) {

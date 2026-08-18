@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows } from './loadOptions';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
 export declare class ContentStudio implements INodeType {
     description: INodeTypeDescription;
     methods: {
@@ -13,6 +13,7 @@ export declare class ContentStudio implements INodeType {
             getTeamMembers: typeof getTeamMembers;
             getFacebookBackgrounds: typeof getFacebookBackgrounds;
             getApprovalWorkflows: typeof getApprovalWorkflows;
+            getSchedulingAccounts: typeof getSchedulingAccounts;
         };
     };
     execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]>;

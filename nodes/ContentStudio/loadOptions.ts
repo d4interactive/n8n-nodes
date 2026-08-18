@@ -1,5 +1,5 @@
 import type { IHttpRequestOptions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
-import { normalizeBase } from './utils';
+import { normalizeBase, SCHEDULING_PLATFORMS } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudio.credentials';
 
 const CREDENTIALS_TYPE = 'contentStudio';
@@ -239,6 +239,41 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
     const list: any[] = body?.data || [];
     return list
       .map(formatAccountOption)
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    const hint = statusCode === 403
+      ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
+      : '';
+    throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+  }
+}
+
+export async function getSchedulingAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  let workspaceId = '';
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/accounts`,
+      qs: { page: 1, per_page: 100 },
+    });
+    const list: any[] = extractListFromBody(body);
+    const supported = new Set(SCHEDULING_PLATFORMS);
+    return list
+      .map((a: any) => {
+        const platform = String(a?.platform || a?.provider || '').toLowerCase();
+        // Blog-style connections (wordpress, medium, …) are not analysed by the
+        // optimal-times endpoint, so keep them out of the picker entirely.
+        if (!supported.has(platform)) return null;
+        const option = formatAccountOption(a);
+        if (!option) return null;
+        // Encode the platform so the optimal-times request can build entities
+        // ({ id, type }) without a second lookup.
+        return { ...option, value: `${platform}:${option.value}` } as INodePropertyOptions;
+      })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
     const { statusCode, apiMessage } = extractHttpErrorDetails(error);
