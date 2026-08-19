@@ -51,7 +51,7 @@ function extractListFromBody(body) {
     return Array.isArray(body) ? body : ((body === null || body === void 0 ? void 0 : body.data) || []);
 }
 function formatAccountOption(a) {
-    const id = a === null || a === void 0 ? void 0 : a._id;
+    const id = a === null || a === void 0 ? void 0 : a.id;
     if (!id)
         return null;
     const platform = (a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '';
@@ -122,7 +122,7 @@ async function getCarouselAccounts() {
         const list = extractListFromBody(body);
         return list
             .filter((a) => {
-            const id = a === null || a === void 0 ? void 0 : a._id;
+            const id = a === null || a === void 0 ? void 0 : a.id;
             const platform = ((a === null || a === void 0 ? void 0 : a.platform) || (a === null || a === void 0 ? void 0 : a.provider) || '').toLowerCase();
             return id && selectedSet.has(String(id)) && platform === 'facebook';
         })
@@ -175,7 +175,7 @@ async function getFirstCommentAccounts() {
         const list = extractListFromBody(body);
         return list
             .filter((a) => {
-            const id = a === null || a === void 0 ? void 0 : a._id;
+            const id = a === null || a === void 0 ? void 0 : a.id;
             return id && selectedSet.has(String(id));
         })
             .map(formatAccountOption)
@@ -197,7 +197,7 @@ async function getWorkspaces() {
         const list = (body === null || body === void 0 ? void 0 : body.data) || [];
         return list
             .map((w) => {
-            const id = w === null || w === void 0 ? void 0 : w._id;
+            const id = w === null || w === void 0 ? void 0 : w.id;
             if (!id)
                 return null;
             const name = (w === null || w === void 0 ? void 0 : w.name) || (w === null || w === void 0 ? void 0 : w.title) || id;
@@ -225,7 +225,7 @@ async function getPosts() {
         return list
             .map((p) => {
             var _a;
-            const id = p === null || p === void 0 ? void 0 : p._id;
+            const id = p === null || p === void 0 ? void 0 : p.id;
             if (!id)
                 return null;
             const text = (((_a = p === null || p === void 0 ? void 0 : p.content) === null || _a === void 0 ? void 0 : _a.text) || (p === null || p === void 0 ? void 0 : p.title) || '');
@@ -317,7 +317,7 @@ async function getContentCategories() {
         const list = extractListFromBody(body);
         return list
             .map((c) => {
-            const id = c === null || c === void 0 ? void 0 : c._id;
+            const id = c === null || c === void 0 ? void 0 : c.id;
             if (!id)
                 return null;
             const name = (c === null || c === void 0 ? void 0 : c.name) || String(id);
@@ -373,7 +373,7 @@ async function getApprovalWorkflows() {
         const list = extractListFromBody(body);
         return list
             .map((w) => {
-            const id = w === null || w === void 0 ? void 0 : w._id;
+            const id = w === null || w === void 0 ? void 0 : w.id;
             if (!id)
                 return null;
             const name = (w === null || w === void 0 ? void 0 : w.name) || String(id);
@@ -401,7 +401,7 @@ async function getTeamMembers() {
         const list = extractListFromBody(body);
         return list
             .map((m) => {
-            const id = m === null || m === void 0 ? void 0 : m._id;
+            const id = m === null || m === void 0 ? void 0 : m.id;
             if (!id)
                 return null;
             const name = (m === null || m === void 0 ? void 0 : m.name) || (m === null || m === void 0 ? void 0 : m.email) || String(id);

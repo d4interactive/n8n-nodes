@@ -46,7 +46,7 @@ function extractListFromBody(body: any): any[] {
 }
 
 function formatAccountOption(a: any): INodePropertyOptions | null {
-  const id = a?._id;
+  const id = a?.id;
   if (!id) return null;
   const platform = a?.platform || a?.provider || '';
   const accountName = a?.account_name || a?.username || a?.handle || a?.name || '';
@@ -113,7 +113,7 @@ export async function getCarouselAccounts(this: ILoadOptionsFunctions): Promise<
     const list: any[] = extractListFromBody(body);
     return list
       .filter((a: any) => {
-        const id = a?._id;
+        const id = a?.id;
         const platform = (a?.platform || a?.provider || '').toLowerCase();
         return id && selectedSet.has(String(id)) && platform === 'facebook';
       })
@@ -164,7 +164,7 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
     const list: any[] = extractListFromBody(body);
     return list
       .filter((a: any) => {
-        const id = a?._id;
+        const id = a?.id;
         return id && selectedSet.has(String(id));
       })
       .map(formatAccountOption)
@@ -186,7 +186,7 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
     const list: any[] = body?.data || [];
     return list
       .map((w: any) => {
-        const id = w?._id;
+        const id = w?.id;
         if (!id) return null;
         const name = w?.name || w?.title || id;
         return { name, value: id } as INodePropertyOptions;
@@ -211,7 +211,7 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
     const list: any[] = body?.data || [];
     return list
       .map((p: any) => {
-        const id = p?._id;
+        const id = p?.id;
         if (!id) return null;
         const text: string = (p?.content?.text || p?.title || '') as string;
         const labelBase = `${(text || '').slice(0, 60)}${text && text.length > 60 ? '…' : ''}`.trim();
@@ -297,7 +297,7 @@ export async function getContentCategories(this: ILoadOptionsFunctions): Promise
     const list: any[] = extractListFromBody(body);
     return list
       .map((c: any) => {
-        const id = c?._id;
+        const id = c?.id;
         if (!id) return null;
         const name = c?.name || String(id);
         return { name, value: id } as INodePropertyOptions;
@@ -350,7 +350,7 @@ export async function getApprovalWorkflows(this: ILoadOptionsFunctions): Promise
     const list: any[] = extractListFromBody(body);
     return list
       .map((w: any) => {
-        const id = w?._id;
+        const id = w?.id;
         if (!id) return null;
         const name = w?.name || String(id);
         const label = w?.is_default ? `${name} (default)` : name;
@@ -376,7 +376,7 @@ export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INode
     const list: any[] = extractListFromBody(body);
     return list
       .map((m: any) => {
-        const id = m?._id;
+        const id = m?.id;
         if (!id) return null;
         const name = m?.name || m?.email || String(id);
         const role = m?.role || '';

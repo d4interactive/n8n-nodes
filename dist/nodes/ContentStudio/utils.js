@@ -43,7 +43,7 @@ function parseAccounts(val) {
 }
 // Attempt to parse string into object/array, otherwise return trimmed string
 // Coerce an n8n "json" field value (object or JSON string) into a plain object.
-function parseJsonObject(val) {
+function parseJsonObject(val, fieldLabel = 'Permissions') {
     if (val == null)
         return {};
     if (typeof val === 'object')
@@ -57,7 +57,7 @@ function parseJsonObject(val) {
             return typeof parsed === 'object' && parsed !== null ? parsed : {};
         }
         catch {
-            throw new Error('Permissions must be a valid JSON object');
+            throw new Error(`${fieldLabel} must be a valid JSON object`);
         }
     }
     return {};

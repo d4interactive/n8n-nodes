@@ -500,7 +500,7 @@ export class ContentStudio implements INodeType {
         typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
         default: '',
         required: true,
-        description: 'The social account to remove (disconnect). This is the account _id returned by List Social Accounts.',
+        description: 'The social account to remove (disconnect). This is the account id returned by List Social Accounts.',
         displayOptions: {
           show: { resource: ['socialAccount'], operation: ['remove'] },
         },
@@ -525,7 +525,7 @@ export class ContentStudio implements INodeType {
         type: 'string',
         default: '',
         required: true,
-        description: 'The _id of the label to update or delete (returned by List Labels)',
+        description: 'The id of the label to update or delete (returned by List Labels)',
         displayOptions: {
           show: { resource: ['label'], operation: ['update', 'delete'] },
         },
@@ -637,7 +637,7 @@ export class ContentStudio implements INodeType {
         type: 'string',
         default: '',
         required: true,
-        description: 'The _id of the campaign to update or delete (returned by List Campaigns)',
+        description: 'The id of the campaign to update or delete (returned by List Campaigns)',
         displayOptions: {
           show: { resource: ['campaign'], operation: ['update', 'delete'] },
         },
@@ -1177,6 +1177,20 @@ export class ContentStudio implements INodeType {
         ],
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
       },
+      {
+        displayName: 'Platform Overrides (JSON)',
+        name: 'platformOverrides',
+        type: 'json',
+        default: '{}',
+        description:
+          'Per-platform content overrides, keyed by platform name: facebook, instagram, twitter, linkedin, pinterest, youtube, tiktok, gmb, tumblr, threads, bluesky, telegram. ' +
+          'Each value is { content: { text?, post_type?, media?: { images?, video? } } }. Omit entirely to publish the same top-level Content Text / Media / Post Type to every platform. ' +
+          'Merge semantics: content.text and content.post_type each merge independently with the top-level Content Text / Post Type — an override supplying only media still inherits the common text and post_type. ' +
+          'content.media is atomic: if an override\'s content includes a media key AT ALL, that platform\'s media is defined ENTIRELY by the override (images/video together) — it does NOT fall back field-by-field to the common media. ' +
+          'No media key in the override means that platform inherits the common Media Images/Media Video wholesale. This exists because some platforms (e.g. TikTok) can never support mixed images+video. ' +
+          'Example: {"tiktok": {"content": {"media": {"video": "https://example.com/tiktok.mp4"}}}}',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
+      },
       ...createThreadOptionsSection('hasTwitterOptions', 'Twitter Options', 'twitterOptions', 'threadedTweets', true),
       ...createThreadOptionsSection('hasThreadsOptions', 'Threads Options', 'threadsOptions', 'multiThreads', true),
       {
@@ -1318,8 +1332,28 @@ export class ContentStudio implements INodeType {
         type: 'string',
         default: '',
         placeholder: 'username1, username2, username3',
-        description: 'Comma-separated Instagram usernames to invite as collaborators/co-authors (max 3). Applied to any non-story Instagram post.',
+        description: 'Comma-separated Instagram usernames to invite as collaborators/co-authors (max 3). Applied to any non-story Instagram post. Mutually exclusive with Instagram Trial Reel on the same request.',
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasInstagramOptions: [true] } },
+      },
+      {
+        displayName: 'Enable Instagram Trial Reel',
+        name: 'instagramTrialReelEnabled',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to publish as an Instagram trial reel — shown to non-followers first, and not shown on the profile grid or in follower feeds until it graduates. Mutually exclusive with Instagram Collaborators and with sharing to Story on the same request (the backend rejects the combination).',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasInstagramOptions: [true] } },
+      },
+      {
+        displayName: 'Trial Reel Graduation Strategy',
+        name: 'instagramTrialReelGraduationStrategy',
+        type: 'options',
+        options: [
+          { name: 'Auto-Graduate on Good Performance (SS_PERFORMANCE)', value: 'SS_PERFORMANCE' },
+          { name: 'Manual — Graduate in Instagram App Only (MANUAL)', value: 'MANUAL' },
+        ],
+        default: 'SS_PERFORMANCE',
+        description: 'How the trial reel graduates to followers. SS_PERFORMANCE auto-graduates the reel to followers if it performs well; MANUAL requires graduating it by hand in the Instagram app.',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], hasInstagramOptions: [true], instagramTrialReelEnabled: [true] } },
       },
       {
         displayName: 'Enable LinkedIn Options',
@@ -1517,7 +1551,7 @@ export class ContentStudio implements INodeType {
         type: 'options',
         typeOptions: { loadOptionsMethod: 'getApprovalWorkflows', loadOptionsDependsOn: ['workspaceId'] },
         default: '',
-        description: 'The workflow to attach to the post (its _id). On create this is required to attach a workflow. On update, set this to (re)attach a workflow, OR leave it empty and choose a Workflow Action instead — provide exactly one of the two.',
+        description: 'The workflow to attach to the post (its id). On create this is required to attach a workflow. On update, set this to (re)attach a workflow, OR leave it empty and choose a Workflow Action instead — provide exactly one of the two.',
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], useApprovalWorkflow: [true] } },
       },
       {
@@ -2207,16 +2241,41 @@ export class ContentStudio implements INodeType {
           }
         }
 
-        // Instagram collaborators (instagram_options.collaborators, max 3) — gated by the Instagram options toggle
+        // Instagram collaborators (instagram_options.collaborators, max 3) and trial reel (instagram_options.trial_reel) — gated by the Instagram options toggle
         const hasInstagramOptions = this.getNodeParameter('hasInstagramOptions', i, false) as boolean;
         if (hasInstagramOptions) {
           const instagramCollaborators = parseCommaSeparated(this.getNodeParameter('instagramCollaborators', i, '') as unknown);
+          const instagramTrialReelEnabled = this.getNodeParameter('instagramTrialReelEnabled', i, false) as boolean;
+
+          if (instagramCollaborators.length > 0 && instagramTrialReelEnabled) {
+            throw new Error('Instagram Trial Reel is mutually exclusive with Instagram Collaborators on the same request');
+          }
+
+          if (instagramTrialReelEnabled && postType.includes('story')) {
+            throw new Error('Instagram Trial Reel is mutually exclusive with sharing to Story on the same request');
+          }
+
           if (instagramCollaborators.length > 0) {
             if (instagramCollaborators.length > 3) {
               throw new Error(`Instagram collaborators supports at most 3 (got ${instagramCollaborators.length})`);
             }
             (options.body as any).instagram_options = { collaborators: instagramCollaborators };
           }
+
+          if (instagramTrialReelEnabled) {
+            const graduationStrategy = (this.getNodeParameter('instagramTrialReelGraduationStrategy', i, 'SS_PERFORMANCE') as string) || 'SS_PERFORMANCE';
+            (options.body as any).instagram_options = (options.body as any).instagram_options || {};
+            (options.body as any).instagram_options.trial_reel = {
+              enabled: true,
+              graduation_strategy: graduationStrategy,
+            };
+          }
+        }
+
+        // Per-platform content overrides (platform_overrides.<platform>.content.{text,post_type,media})
+        const platformOverrides = parseJsonObject(this.getNodeParameter('platformOverrides', i, '{}') as unknown, 'Platform Overrides');
+        if (Object.keys(platformOverrides).length > 0) {
+          (options.body as any).platform_overrides = platformOverrides;
         }
 
         // LinkedIn options (title and/or poll) — gated by the LinkedIn options toggle
