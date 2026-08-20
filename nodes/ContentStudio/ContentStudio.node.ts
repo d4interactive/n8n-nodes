@@ -197,6 +197,8 @@ export class ContentStudio implements INodeType {
         type: 'options',
         noDataExpression: true,
         options: [
+          { name: 'AI Image', value: 'aiImage' },
+          { name: 'AI Video', value: 'aiVideo' },
           { name: 'Approval Workflow', value: 'approvalWorkflow' },
           { name: 'Auth', value: 'auth' },
           { name: 'Campaign', value: 'campaign' },
@@ -353,6 +355,40 @@ export class ContentStudio implements INodeType {
         default: 'list',
       },
 
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['aiImage'] } },
+        options: [
+          { name: 'List Tools', value: 'listTools', action: 'List AI Image Tools' },
+          { name: 'List Models', value: 'listModels', action: 'List AI Image Models' },
+          { name: 'Brand Status', value: 'brandStatus', action: 'Get AI Brand Status' },
+          { name: 'Generate', value: 'generate', action: 'Generate AI Image' },
+          { name: 'Run Tool', value: 'runTool', action: 'Run a dedicated AI Image Tool' },
+        ],
+        default: 'listTools',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['aiVideo'] } },
+        options: [
+          { name: 'List Tools', value: 'listTools', action: 'List AI Video Tools' },
+          { name: 'List Models', value: 'listModels', action: 'List AI Video Models' },
+          { name: 'Estimate', value: 'estimate', action: 'Estimate AI Video Generation' },
+          { name: 'Generate', value: 'generate', action: 'Generate AI Video' },
+          { name: 'Run Tool', value: 'runTool', action: 'Run a dedicated AI Video Tool' },
+          { name: 'List Jobs', value: 'list', action: 'List AI Video Jobs' },
+          { name: 'Get Job', value: 'get', action: 'Get AI Video Job status' },
+          { name: 'Cancel Job', value: 'delete', action: 'Cancel an AI Video Job' },
+        ],
+        default: 'listTools',
+      },
+
       // Common params
       {
         displayName: 'Workspace ID',
@@ -364,7 +400,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'],
+            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'aiVideo', 'aiImage'],
           },
         },
       },
@@ -375,7 +411,7 @@ export class ContentStudio implements INodeType {
         default: 1,
         typeOptions: { minValue: 1 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'aiVideo'], operation: ['list'] },
         },
       },
       {
@@ -385,7 +421,7 @@ export class ContentStudio implements INodeType {
         default: 10,
         typeOptions: { minValue: 1, maxValue: 100 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'aiVideo'], operation: ['list'] },
         },
       },
 
@@ -1584,6 +1620,380 @@ export class ContentStudio implements INodeType {
         description: 'Campaign ID to assign the post to. Get the ID from the Campaign resource.',
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'] } },
       },
+
+      // AI Image — generate
+      {
+        displayName: 'Prompt',
+        name: 'aiImagePrompt',
+        type: 'string',
+        default: '',
+        required: true,
+        typeOptions: { rows: 3 },
+        description: 'Text prompt describing the image to generate (max 1000 characters)',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Image URL',
+        name: 'aiImageImageUrl',
+        type: 'string',
+        default: '',
+        description:
+          'Base image URL — switches generation to image-to-image editing. Use Brand and Dimensions do not apply on this branch.',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Model',
+        name: 'aiImageModel',
+        type: 'string',
+        default: '',
+        description: 'Model key to use — must be one of the values returned by List Models. Leave empty for the workspace default.',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Use Brand',
+        name: 'aiImageUseBrand',
+        type: 'boolean',
+        default: false,
+        description:
+          'Whether to apply the workspace brand knowledge (resolved server-side, no brand ID accepted). Text-to-image only — ignored when Image URL is set; brand_applied is always false on the image-to-image branch.',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Dimensions',
+        name: 'aiImageDimensions',
+        type: 'options',
+        options: [
+          { name: 'Default', value: '' },
+          { name: 'Square', value: 'square' },
+          { name: 'Square HD', value: 'square_hd' },
+          { name: 'Portrait 4:5', value: 'portrait_4_5' },
+          { name: 'Landscape 16:9', value: 'landscape_16_9' },
+        ],
+        default: '',
+        description: 'Text-to-image only. Ignored when Image URL is present — an edit keeps the base image geometry.',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Enhance Prompt',
+        name: 'aiImageEnhancePrompt',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to let the AI enhance/expand the prompt before generation',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['generate'] } },
+      },
+
+      // AI Image — run tool
+      {
+        displayName: 'Tool',
+        name: 'aiImageToolKey',
+        type: 'options',
+        options: [
+          { name: 'Image to Image', value: 'image-to-image' },
+          { name: 'Remove Background', value: 'remove-background' },
+          { name: 'Upscale', value: 'upscale' },
+          { name: 'Headshot', value: 'headshot' },
+          { name: 'Face Swap', value: 'face-swap' },
+          { name: 'Outfit Swap', value: 'outfit-swap' },
+          { name: 'Product Image', value: 'product-image' },
+        ],
+        default: 'remove-background',
+        required: true,
+        description: 'The tool key to invoke (returned by List Tools)',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'] } },
+      },
+      {
+        displayName: 'Prompt',
+        name: 'aiImageToolPrompt',
+        type: 'string',
+        default: '',
+        required: true,
+        typeOptions: { rows: 3 },
+        description: 'Prompt describing the edit (max 1000 characters)',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['image-to-image'] } },
+      },
+      {
+        displayName: 'Attachments (Comma-Separated URLs)',
+        name: 'aiImageToolAttachments',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Base image URL(s) to edit — at least one required',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['image-to-image'] } },
+      },
+      {
+        displayName: 'Model',
+        name: 'aiImageToolModel',
+        type: 'string',
+        default: '',
+        description: 'Model key to use for this tool. Leave empty for the workspace default.',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['image-to-image'] } },
+      },
+      {
+        displayName: 'Enhance Prompt',
+        name: 'aiImageToolEnhancePrompt',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to let the AI enhance/expand the prompt before generation',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['image-to-image'] } },
+      },
+      {
+        displayName: 'Image URL',
+        name: 'aiImageToolImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source image URL',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['remove-background', 'upscale', 'headshot'] } },
+      },
+      {
+        displayName: 'Aspect Ratio',
+        name: 'aiImageToolAspectRatio',
+        type: 'string',
+        default: '',
+        description: 'Optional aspect ratio hint for this tool',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['headshot', 'product-image'] } },
+      },
+      {
+        displayName: 'Resolution',
+        name: 'aiImageToolResolution',
+        type: 'string',
+        default: '',
+        description: 'Optional resolution hint for this tool',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['upscale', 'headshot', 'face-swap', 'product-image'] } },
+      },
+      {
+        displayName: 'Target Image URL',
+        name: 'aiImageToolTargetImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The base image to modify',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['face-swap', 'outfit-swap'] } },
+      },
+      {
+        displayName: 'Face Image URL',
+        name: 'aiImageToolFaceImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source face image URL',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['face-swap'] } },
+      },
+      {
+        displayName: 'Outfit Image URL',
+        name: 'aiImageToolOutfitImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Reference outfit image URL',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['outfit-swap'] } },
+      },
+      {
+        displayName: 'Product Image URL',
+        name: 'aiImageToolProductImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source product image URL',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['product-image'] } },
+      },
+      {
+        displayName: 'Reference Image URL',
+        name: 'aiImageToolReferenceImageUrl',
+        type: 'string',
+        default: '',
+        description: 'Optional reference image URL',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['product-image'] } },
+      },
+      {
+        displayName: 'Instructions',
+        name: 'aiImageToolInstructions',
+        type: 'string',
+        default: '',
+        typeOptions: { rows: 2 },
+        description: 'Optional free-text instructions (max 1000 characters)',
+        displayOptions: { show: { resource: ['aiImage'], operation: ['runTool'], aiImageToolKey: ['product-image'] } },
+      },
+
+      // AI Video — estimate/generate shared options
+      {
+        displayName: 'Duration (Seconds)',
+        name: 'aiVideoDuration',
+        type: 'number',
+        default: 4.0,
+        description: 'Requested video duration in seconds',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Model',
+        name: 'aiVideoModel',
+        type: 'string',
+        default: '',
+        description: 'Model key to use (returned by List Models). Leave empty for the workspace default.',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Resolution',
+        name: 'aiVideoResolution',
+        type: 'string',
+        default: '',
+        description: 'Resolution key supported by the chosen model (see List Models supported_resolutions)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Aspect Ratio',
+        name: 'aiVideoAspectRatio',
+        type: 'string',
+        default: '',
+        description: 'Aspect ratio supported by the chosen model (see List Models supported_ratios)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Enable Audio',
+        name: 'aiVideoEnableAudio',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to generate audio along with the video (model must support it)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Enhance Prompt',
+        name: 'aiVideoEnhancePrompt',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to let the AI enhance/expand the prompt before generation',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate', 'generate'] } },
+      },
+      {
+        displayName: 'Generation Mode',
+        name: 'aiVideoGenerationMode',
+        type: 'options',
+        options: [
+          { name: 'Text to Video', value: 'text-to-video' },
+          { name: 'Image to Video', value: 'image-to-video' },
+          { name: 'Reference to Video', value: 'reference-to-video' },
+        ],
+        default: 'text-to-video',
+        description:
+          'Only used by Estimate. Generate infers the mode automatically from Image URL / Reference Image URLs.',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['estimate'] } },
+      },
+
+      // AI Video — generate
+      {
+        displayName: 'Prompt',
+        name: 'aiVideoPrompt',
+        type: 'string',
+        default: '',
+        required: true,
+        typeOptions: { rows: 3 },
+        description: 'Text prompt describing the video to generate (max 1000 characters)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Image URL',
+        name: 'aiVideoImageUrl',
+        type: 'string',
+        default: '',
+        description:
+          'Source image URL — switches generation to image-to-video. Mutually exclusive with Reference Image URLs.',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Reference Image URLs',
+        name: 'aiVideoReferenceImageUrls',
+        type: 'string',
+        default: '',
+        description:
+          'Comma-separated image URLs (max 8) — switches generation to reference-to-video. Mutually exclusive with Image URL.',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Style',
+        name: 'aiVideoStyle',
+        type: 'string',
+        default: '',
+        description: 'Optional style hint passed to the model',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['generate'] } },
+      },
+      {
+        displayName: 'Use Brand',
+        name: 'aiVideoUseBrand',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to apply the workspace brand kit (brand is resolved server-side, no ID accepted)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['generate'] } },
+      },
+
+      // AI Video — run tool
+      {
+        displayName: 'Tool',
+        name: 'aiVideoToolKey',
+        type: 'options',
+        options: [
+          { name: 'Motion Control', value: 'motion-control' },
+          { name: 'Lip Sync', value: 'lip-sync' },
+          { name: 'Talking Avatar', value: 'talking-avatar' },
+        ],
+        default: 'motion-control',
+        required: true,
+        description: 'The tool key to invoke (returned by List Tools)',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['runTool'] } },
+      },
+      {
+        displayName: 'Image URL',
+        name: 'aiVideoToolImageUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source image URL',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['runTool'], aiVideoToolKey: ['motion-control', 'talking-avatar'] } },
+      },
+      {
+        displayName: 'Video URL',
+        name: 'aiVideoToolVideoUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source video URL',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['runTool'], aiVideoToolKey: ['motion-control', 'lip-sync'] } },
+      },
+      {
+        displayName: 'Audio URL',
+        name: 'aiVideoToolAudioUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Source audio URL',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['runTool'], aiVideoToolKey: ['lip-sync', 'talking-avatar'] } },
+      },
+
+      // AI Video — jobs
+      {
+        displayName: 'Status',
+        name: 'aiVideoJobStatus',
+        type: 'options',
+        options: [
+          { name: 'Any', value: '' },
+          { name: 'Queued', value: 'queued' },
+          { name: 'Processing', value: 'processing' },
+          { name: 'Completed', value: 'completed' },
+          { name: 'Failed', value: 'failed' },
+          { name: 'Cancelled', value: 'cancelled' },
+        ],
+        default: '',
+        description: 'Filter jobs by status',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['list'] } },
+      },
+      {
+        displayName: 'Job ID',
+        name: 'aiVideoJobId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The job_id returned by Generate / Run Tool / List Jobs',
+        displayOptions: { show: { resource: ['aiVideo'], operation: ['get', 'delete'] } },
+      },
     ],
   };
 
@@ -1630,6 +2040,236 @@ export class ContentStudio implements INodeType {
       if (resource === 'auth' && operation === 'validateKey') {
         options.method = 'GET';
         options.url = `${baseRoot}/v1/me`;
+      }
+
+      if (resource === 'aiImage' && operation === 'listTools') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/images/tools`;
+      }
+
+      if (resource === 'aiImage' && operation === 'listModels') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/images/models`;
+      }
+
+      if (resource === 'aiImage' && operation === 'brandStatus') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/brand`;
+      }
+
+      if (resource === 'aiImage' && operation === 'generate') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const prompt = (this.getNodeParameter('aiImagePrompt', i) as string) || '';
+        if (!prompt) throw new Error('Prompt is required');
+        const imageUrl = (this.getNodeParameter('aiImageImageUrl', i) as string) || '';
+        const model = (this.getNodeParameter('aiImageModel', i) as string) || '';
+        const useBrand = this.getNodeParameter('aiImageUseBrand', i) as boolean;
+        const dimensions = (this.getNodeParameter('aiImageDimensions', i) as string) || '';
+        const enhancePrompt = this.getNodeParameter('aiImageEnhancePrompt', i) as boolean;
+
+        const body: Record<string, any> = { prompt };
+        if (imageUrl) body.image_url = imageUrl;
+        if (model) body.model = model;
+        if (useBrand) body.use_brand = useBrand;
+        if (dimensions) body.dimensions = dimensions;
+        if (enhancePrompt) body.enhance_prompt = enhancePrompt;
+
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/images/generate`;
+        options.body = body;
+      }
+
+      if (resource === 'aiImage' && operation === 'runTool') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const toolKey = this.getNodeParameter('aiImageToolKey', i) as string;
+        const body: Record<string, any> = {};
+
+        if (toolKey === 'image-to-image') {
+          const prompt = (this.getNodeParameter('aiImageToolPrompt', i) as string) || '';
+          if (!prompt) throw new Error('Prompt is required for this tool');
+          const attachmentsRaw = (this.getNodeParameter('aiImageToolAttachments', i) as string) || '';
+          const attachments = parseCommaSeparated(attachmentsRaw);
+          if (attachments.length === 0) throw new Error('At least one attachment URL is required for this tool');
+          body.prompt = prompt;
+          body.attachments = attachments;
+          const model = (this.getNodeParameter('aiImageToolModel', i) as string) || '';
+          if (model) body.model = model;
+          const enhancePrompt = this.getNodeParameter('aiImageToolEnhancePrompt', i) as boolean;
+          if (enhancePrompt) body.enhance_prompt = enhancePrompt;
+        }
+
+        if (toolKey === 'remove-background' || toolKey === 'upscale' || toolKey === 'headshot') {
+          const imageUrl = (this.getNodeParameter('aiImageToolImageUrl', i) as string) || '';
+          if (!imageUrl) throw new Error('Image URL is required for this tool');
+          body.image_url = imageUrl;
+        }
+
+        if (toolKey === 'upscale' || toolKey === 'headshot' || toolKey === 'face-swap' || toolKey === 'product-image') {
+          const resolution = (this.getNodeParameter('aiImageToolResolution', i) as string) || '';
+          if (resolution) body.resolution = resolution;
+        }
+
+        if (toolKey === 'headshot' || toolKey === 'product-image') {
+          const aspectRatio = (this.getNodeParameter('aiImageToolAspectRatio', i) as string) || '';
+          if (aspectRatio) body.aspect_ratio = aspectRatio;
+        }
+
+        if (toolKey === 'face-swap') {
+          const targetImageUrl = (this.getNodeParameter('aiImageToolTargetImageUrl', i) as string) || '';
+          if (!targetImageUrl) throw new Error('Target Image URL is required for this tool');
+          const faceImageUrl = (this.getNodeParameter('aiImageToolFaceImageUrl', i) as string) || '';
+          if (!faceImageUrl) throw new Error('Face Image URL is required for this tool');
+          body.target_image_url = targetImageUrl;
+          body.face_image_url = faceImageUrl;
+        }
+
+        if (toolKey === 'outfit-swap') {
+          const targetImageUrl = (this.getNodeParameter('aiImageToolTargetImageUrl', i) as string) || '';
+          if (!targetImageUrl) throw new Error('Target Image URL is required for this tool');
+          const outfitImageUrl = (this.getNodeParameter('aiImageToolOutfitImageUrl', i) as string) || '';
+          if (!outfitImageUrl) throw new Error('Outfit Image URL is required for this tool');
+          body.target_image_url = targetImageUrl;
+          body.outfit_image_url = outfitImageUrl;
+        }
+
+        if (toolKey === 'product-image') {
+          const productImageUrl = (this.getNodeParameter('aiImageToolProductImageUrl', i) as string) || '';
+          if (!productImageUrl) throw new Error('Product Image URL is required for this tool');
+          body.product_image_url = productImageUrl;
+          const referenceImageUrl = (this.getNodeParameter('aiImageToolReferenceImageUrl', i) as string) || '';
+          if (referenceImageUrl) body.reference_image_url = referenceImageUrl;
+          const instructions = (this.getNodeParameter('aiImageToolInstructions', i) as string) || '';
+          if (instructions) body.instructions = instructions;
+        }
+
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/images/tools/${toolKey}`;
+        options.body = body;
+      }
+
+      if (resource === 'aiVideo' && operation === 'listTools') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/videos/tools`;
+      }
+
+      if (resource === 'aiVideo' && operation === 'listModels') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/videos/models`;
+      }
+
+      if (resource === 'aiVideo' && operation === 'estimate') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const durationSeconds = this.getNodeParameter('aiVideoDuration', i) as number;
+        const model = (this.getNodeParameter('aiVideoModel', i) as string) || '';
+        const resolution = (this.getNodeParameter('aiVideoResolution', i) as string) || '';
+        const aspectRatio = (this.getNodeParameter('aiVideoAspectRatio', i) as string) || '';
+        const generationMode = (this.getNodeParameter('aiVideoGenerationMode', i) as string) || '';
+        const enableAudio = this.getNodeParameter('aiVideoEnableAudio', i) as boolean;
+        const enhancePrompt = this.getNodeParameter('aiVideoEnhancePrompt', i) as boolean;
+        const body: Record<string, any> = {};
+        if (durationSeconds != null) body.duration_seconds = durationSeconds;
+        if (model) body.model = model;
+        if (resolution) body.resolution = resolution;
+        if (aspectRatio) body.aspect_ratio = aspectRatio;
+        if (generationMode) body.generation_mode = generationMode;
+        if (enableAudio) body.enable_audio = enableAudio;
+        if (enhancePrompt) body.enhance_prompt = enhancePrompt;
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/videos/estimate`;
+        options.body = body;
+      }
+
+      if (resource === 'aiVideo' && operation === 'generate') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const prompt = (this.getNodeParameter('aiVideoPrompt', i) as string) || '';
+        if (!prompt) throw new Error('Prompt is required');
+        const imageUrl = (this.getNodeParameter('aiVideoImageUrl', i) as string) || '';
+        const referenceImageUrlsRaw = (this.getNodeParameter('aiVideoReferenceImageUrls', i) as string) || '';
+        const model = (this.getNodeParameter('aiVideoModel', i) as string) || '';
+        const durationSeconds = this.getNodeParameter('aiVideoDuration', i) as number;
+        const resolution = (this.getNodeParameter('aiVideoResolution', i) as string) || '';
+        const aspectRatio = (this.getNodeParameter('aiVideoAspectRatio', i) as string) || '';
+        const enableAudio = this.getNodeParameter('aiVideoEnableAudio', i) as boolean;
+        const enhancePrompt = this.getNodeParameter('aiVideoEnhancePrompt', i) as boolean;
+        const style = (this.getNodeParameter('aiVideoStyle', i) as string) || '';
+        const useBrand = this.getNodeParameter('aiVideoUseBrand', i) as boolean;
+
+        const body: Record<string, any> = { prompt };
+        const referenceImageUrls = parseCommaSeparated(referenceImageUrlsRaw);
+        if (imageUrl && referenceImageUrls.length > 0) {
+          throw new Error('Image URL and Reference Image URLs are mutually exclusive');
+        }
+        if (imageUrl) body.image_url = imageUrl;
+        if (referenceImageUrls.length > 0) body.reference_image_urls = referenceImageUrls;
+        if (model) body.model = model;
+        if (durationSeconds != null) body.duration_seconds = durationSeconds;
+        if (resolution) body.resolution = resolution;
+        if (aspectRatio) body.aspect_ratio = aspectRatio;
+        if (enableAudio) body.enable_audio = enableAudio;
+        if (enhancePrompt) body.enhance_prompt = enhancePrompt;
+        if (style) body.style = style;
+        if (useBrand) body.use_brand = useBrand;
+
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/videos/generate`;
+        options.body = body;
+      }
+
+      if (resource === 'aiVideo' && operation === 'runTool') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const toolKey = this.getNodeParameter('aiVideoToolKey', i) as string;
+        const body: Record<string, any> = {};
+        if (toolKey === 'motion-control' || toolKey === 'talking-avatar') {
+          const imageUrl = (this.getNodeParameter('aiVideoToolImageUrl', i) as string) || '';
+          if (!imageUrl) throw new Error('Image URL is required for this tool');
+          body.image_url = imageUrl;
+        }
+        if (toolKey === 'motion-control' || toolKey === 'lip-sync') {
+          const videoUrl = (this.getNodeParameter('aiVideoToolVideoUrl', i) as string) || '';
+          if (!videoUrl) throw new Error('Video URL is required for this tool');
+          body.video_url = videoUrl;
+        }
+        if (toolKey === 'lip-sync' || toolKey === 'talking-avatar') {
+          const audioUrl = (this.getNodeParameter('aiVideoToolAudioUrl', i) as string) || '';
+          if (!audioUrl) throw new Error('Audio URL is required for this tool');
+          body.audio_url = audioUrl;
+        }
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/videos/tools/${toolKey}`;
+        options.body = body;
+      }
+
+      if (resource === 'aiVideo' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const status = (this.getNodeParameter('aiVideoJobStatus', i) as string) || '';
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/jobs`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (status) qs.status = status;
+        options.qs = qs;
+      }
+
+      if (resource === 'aiVideo' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const jobId = (this.getNodeParameter('aiVideoJobId', i) as string) || '';
+        if (!jobId) throw new Error('Job ID is required');
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/jobs/${jobId}`;
+      }
+
+      if (resource === 'aiVideo' && operation === 'delete') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const jobId = (this.getNodeParameter('aiVideoJobId', i) as string) || '';
+        if (!jobId) throw new Error('Job ID is required');
+        options.method = 'DELETE';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/jobs/${jobId}`;
       }
 
       if (resource === 'approvalWorkflow' && operation === 'list') {
