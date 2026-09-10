@@ -1,7 +1,7 @@
 export declare function normalizeBase(u: string): string;
 export declare function parseArray(val: unknown): any[];
 export declare function parseAccounts(val: unknown): any[];
-export declare function parseJsonObject(val: unknown): Record<string, any>;
+export declare function parseJsonObject(val: unknown, fieldLabel?: string): Record<string, any>;
 export declare function parseMaybeObject(val: string): any;
 export declare function parseCommaSeparated(val: unknown): string[];
 export declare const SCHEDULING_PLATFORMS: string[];

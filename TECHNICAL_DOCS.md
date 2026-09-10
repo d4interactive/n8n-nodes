@@ -88,7 +88,7 @@ All ContentStudio API responses follow this format:
 ### Workspace Loader (`getWorkspaces`)
 - **Endpoint**: `GET /v1/workspaces`
 - **Parameters**: `page=1, per_page=100`
-- **Returns**: Array of `{name, value}` options where value is workspace `_id`
+- **Returns**: Array of `{name, value}` options where value is workspace `id`
 
 ### Posts Loader (`getPosts`)
 - **Endpoint**: `GET /v1/workspaces/{workspaceId}/posts`
