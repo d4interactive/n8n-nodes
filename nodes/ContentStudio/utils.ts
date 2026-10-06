@@ -53,6 +53,23 @@ export function parseJsonObject(
   return {};
 }
 
+// Coerce an n8n "json" field value (array or JSON string) into a plain array.
+export function parseJsonArray(node: INode, val: unknown, fieldLabel: string): any[] {
+  if (val == null) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    const t = val.trim();
+    if (!t) return [];
+    try {
+      const parsed = JSON.parse(t);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      throw new NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
+    }
+  }
+  throw new NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
+}
+
 export function parseMaybeObject(val: string): any {
   const t = (val || '').trim();
   if (!t) return undefined;

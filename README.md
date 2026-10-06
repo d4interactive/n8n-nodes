@@ -40,8 +40,13 @@ The API base URL is built into the node, so users only need to provide their API
 - **Auth**: Validate API key
 - **Workspace**: List, create, update, and delete workspaces
 - **Social Account**: List social accounts
-- **Post**: Create, list, and delete posts
+- **Post**: List, get, create, update, delete, and approve/reject posts (including repeat schedules)
 - **Scheduling**: Get the best times to post
+- **Content Category**: List, get, create, update, delete, and shuffle content categories
+- **Content Category Slot**: List, create, update, delete slots, and look up the next slot
+- **Approval Workflow**: List, get, create, update, delete, duplicate, set/remove default, and poll cascade jobs
+- **Share Link**: List, get, create, update, delete share links, send approval invitations, and read activity
+- **Limit**: Get plan limits and current usage for a workspace
 
 ### Post Operations
 
@@ -71,6 +76,41 @@ The API base URL is built into the node, so users only need to provide their API
 Each ranked slot includes a `scheduled_at` value in `YYYY-MM-DD HH:MM:SS` format that
 can be wired straight into the **Scheduled At** field of a later Create Post operation.
 Times are always in the workspace timezone, returned on each slot as `timezone`.
+
+### Limit Operations
+
+#### Get Plan Limits and Usage
+- **Workspace**: Select workspace
+
+Returns `plan`, `limits` and `usage_reset` (passed through unchanged from the API):
+
+- `plan` — `slug`, `name`, `is_annually`.
+- `limits` — always the same 14 entries, in a stable order: `workspaces`,
+  `social_accounts`, `team_members`, `x_posting_credits`, `listening_topics`,
+  `listening_mentions`, `ai_text_credits`, `ai_image_credits`, `ai_video_credits`,
+  `video_clip_credits`, `ai_auto_reply_credits`, `automations`, `media_storage`,
+  `api_credits`. Each entry has `key`, `label`, `used`, `limit`, `remaining`,
+  `scope`, `is_unlimited`, `is_on_plan`, `unit`, `period`, `resets_at` and `note`.
+- `usage_reset` — `last_reset_at`, `next_reset_at` (ISO 8601 with offset, e.g.
+  `2026-10-01T00:00:00+00:00`) and `note`.
+
+Reading the entries:
+
+- `scope` is `account` or `workspace` and says what `used` counts. The six
+  account-wide entries (`workspaces`, `social_accounts`, `team_members`,
+  `listening_topics`, `automations`, `media_storage`) report room left across the
+  whole account — `social_accounts.remaining: 3` means three more anywhere on the
+  account, not three more in this workspace. The eight credit counters are
+  workspace-scoped.
+- `limit: null` alone cannot distinguish "unlimited" from "not on this plan" —
+  branch on `is_unlimited` and `is_on_plan` instead.
+- `unit` is `bytes` for `media_storage` and `count` for everything else.
+- `period` is `monthly` or `lifetime`; `resets_at` is `null` when `period` is
+  `lifetime`.
+
+The request-rate ceiling is **not** in this response. It is published on every API
+call as the `X-RateLimit-Limit` / `X-RateLimit-Remaining` response headers. The
+endpoint is not cached — it is built live on every request.
 
 ## Features
 

@@ -1,10 +1,46 @@
-import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties, JsonObject } from 'n8n-workflow';
+import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties, INodePropertyOptions, JsonObject } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
-import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseSchedulingEntityRefs, flattenOptimalTimes, SCHEDULING_PLATFORMS } from './utils';
+import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseJsonArray, parseSchedulingEntityRefs, flattenOptimalTimes, SCHEDULING_PLATFORMS } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
 const CREDENTIALS_TYPE = 'contentStudioApi';
+
+// Color tokens shared by labels, campaigns and content categories. The backend
+// stores the token; the hex is shown for reference only.
+const COLOR_TOKEN_OPTIONS: INodePropertyOptions[] = [
+  { name: 'color_1  (#69c366)', value: 'color_1' },
+  { name: 'color_2  (#5cc6ff)', value: 'color_2' },
+  { name: 'color_3  (#ff6462)', value: 'color_3' },
+  { name: 'color_4  (#fea28b)', value: 'color_4' },
+  { name: 'color_5  (#ff5f31)', value: 'color_5' },
+  { name: 'color_6  (#864de9)', value: 'color_6' },
+  { name: 'color_7  (#e7af4d)', value: 'color_7' },
+  { name: 'color_8  (#fa6ab6)', value: 'color_8' },
+  { name: 'color_9  (#0095f3)', value: 'color_9' },
+  { name: 'color_10 (#dc70ea)', value: 'color_10' },
+  { name: 'color_11 (#456990)', value: 'color_11' },
+  { name: 'color_12 (#028090)', value: 'color_12' },
+  { name: 'color_13 (#ffa13f)', value: 'color_13' },
+  { name: 'color_14 (#231942)', value: 'color_14' },
+  { name: 'color_15 (#544c72)', value: 'color_15' },
+  { name: 'color_16 (#975816)', value: 'color_16' },
+  { name: 'color_17 (#0e4749)', value: 'color_17' },
+  { name: 'color_18 (#a5be00)', value: 'color_18' },
+  { name: 'color_19 (#fc1100)', value: 'color_19' },
+  { name: 'color_20 (#000000)', value: 'color_20' },
+];
+
+// Weekday values accepted by content category slots (lowercase, as the API stores them).
+const SLOT_DAY_OPTIONS: INodePropertyOptions[] = [
+  { name: 'Sunday', value: 'sunday' },
+  { name: 'Monday', value: 'monday' },
+  { name: 'Tuesday', value: 'tuesday' },
+  { name: 'Wednesday', value: 'wednesday' },
+  { name: 'Thursday', value: 'thursday' },
+  { name: 'Friday', value: 'friday' },
+  { name: 'Saturday', value: 'saturday' },
+];
 
 type ThreadItemPayload = {
   message: string;
@@ -205,10 +241,13 @@ export class ContentStudio implements INodeType {
           { name: 'Campaign', value: 'campaign' },
           { name: 'Comment', value: 'comment' },
           { name: 'Content Category', value: 'contentCategory' },
+          { name: 'Content Category Slot', value: 'contentCategorySlot' },
           { name: 'Label', value: 'label' },
+          { name: 'Limit', value: 'limit' },
           { name: 'Media', value: 'media' },
           { name: 'Post', value: 'post' },
           { name: 'Scheduling', value: 'scheduling' },
+          { name: 'Share Link', value: 'shareLink' },
           { name: 'Social Account', value: 'socialAccount' },
           { name: 'Team Member', value: 'teamMember' },
           { name: 'Workspace', value: 'workspace' },
@@ -235,6 +274,14 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['approvalWorkflow'] } },
         options: [
           { name: 'List', value: 'list', action: 'List Approval Workflows' },
+          { name: 'Get', value: 'get', action: 'Get an Approval Workflow' },
+          { name: 'Create', value: 'create', action: 'Create an Approval Workflow' },
+          { name: 'Update', value: 'update', action: 'Update an Approval Workflow' },
+          { name: 'Delete', value: 'delete', action: 'Delete an Approval Workflow' },
+          { name: 'Duplicate', value: 'duplicate', action: 'Duplicate an Approval Workflow' },
+          { name: 'Set Default', value: 'setDefault', action: 'Set an Approval Workflow as default' },
+          { name: 'Remove Default', value: 'removeDefault', action: 'Remove the default Approval Workflow flag' },
+          { name: 'Get Cascade Job', value: 'getCascadeJob', action: 'Get an Approval Workflow cascade job' },
         ],
         default: 'list',
       },
@@ -272,8 +319,62 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['contentCategory'] } },
         options: [
           { name: 'List', value: 'list', action: 'List Content Categories' },
+          { name: 'Get', value: 'get', action: 'Get a Content Category with its slots' },
+          { name: 'Create', value: 'create', action: 'Create a Content Category' },
+          { name: 'Update', value: 'update', action: 'Update a Content Category' },
+          { name: 'Delete', value: 'delete', action: 'Delete a Content Category' },
+          { name: 'Shuffle', value: 'shuffle', action: 'Shuffle upcoming posts in a Content Category' },
         ],
         default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['contentCategorySlot'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Content Category Slots' },
+          { name: 'Create', value: 'create', action: 'Create a Content Category Slot' },
+          { name: 'Update', value: 'update', action: 'Update a Content Category Slot' },
+          { name: 'Delete', value: 'delete', action: 'Delete a Content Category Slot' },
+          { name: 'Next Slot', value: 'next', action: 'Get the next Content Category Slot' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['shareLink'] } },
+        options: [
+          { name: 'List', value: 'list', action: 'List Share Links' },
+          { name: 'Get', value: 'get', action: 'Get a Share Link' },
+          { name: 'Create', value: 'create', action: 'Create a Share Link' },
+          { name: 'Update', value: 'update', action: 'Update a Share Link' },
+          { name: 'Delete', value: 'delete', action: 'Delete a Share Link' },
+          { name: 'Send Invitations', value: 'sendInvitations', action: 'Send Share Link approval invitations' },
+          { name: 'Activity', value: 'activity', action: 'Get Share Link activity' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['limit'] } },
+        options: [
+          {
+            name: 'Get',
+            value: 'get',
+            action: 'Get plan limits and usage',
+            description:
+              'Returns the plan summary, the 14 metered entitlements and the monthly usage-reset window, built live on every request. The request-rate ceiling is not part of the body — read it from the X-RateLimit-Limit / X-RateLimit-Remaining response headers.',
+          },
+        ],
+        default: 'get',
       },
       {
         displayName: 'Operation',
@@ -349,6 +450,7 @@ export class ContentStudio implements INodeType {
         displayOptions: { show: { resource: ['post'] } },
         options: [
           { name: 'List', value: 'list', action: 'List Posts' },
+          { name: 'Get', value: 'get', action: 'Get Social Post' },
           { name: 'Create', value: 'create', action: 'Create Social Post' },
           { name: 'Update', value: 'update', action: 'Update Social Post' },
           { name: 'Delete', value: 'delete', action: 'Delete Post' },
@@ -413,7 +515,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'scheduling', 'aiVideo', 'aiImage'],
+            resource: ['socialAccount', 'contentCategory', 'contentCategorySlot', 'label', 'campaign', 'limit', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'scheduling', 'aiVideo', 'aiImage'],
           },
         },
       },
@@ -424,7 +526,7 @@ export class ContentStudio implements INodeType {
         default: 1,
         typeOptions: { minValue: 1 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'aiVideo'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'aiVideo'], operation: ['list'] },
         },
       },
       {
@@ -434,7 +536,7 @@ export class ContentStudio implements INodeType {
         default: 10,
         typeOptions: { minValue: 1, maxValue: 100 },
         displayOptions: {
-          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'aiVideo'], operation: ['list'] },
+          show: { resource: ['workspace', 'socialAccount', 'contentCategory', 'label', 'campaign', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'aiVideo'], operation: ['list'] },
         },
       },
 
@@ -764,6 +866,667 @@ export class ContentStudio implements INodeType {
         description: 'Color token for the campaign. Leave as "(keep current)" to leave color unchanged.',
         displayOptions: {
           show: { resource: ['campaign'], operation: ['update'] },
+        },
+      },
+
+      // Content Category get/update/delete/shuffle
+      {
+        displayName: 'Content Category ID',
+        name: 'categoryId',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getContentCategories', loadOptionsDependsOn: ['workspaceId'] },
+        default: '',
+        required: true,
+        description: 'The content category to act on (returned by Content Category → List). Unknown ids answer CONTENT_CATEGORY_NOT_FOUND; global categories cannot be modified and answer CONTENT_CATEGORY_IS_GLOBAL.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['get', 'update', 'delete', 'shuffle'] },
+        },
+      },
+      {
+        displayName: 'Content Category ID',
+        name: 'categoryId',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getContentCategories', loadOptionsDependsOn: ['workspaceId'] },
+        default: '',
+        required: true,
+        description: 'The content category whose posting slots are read or changed (returned by Content Category → List)',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'] },
+        },
+      },
+      {
+        displayName: 'Name',
+        name: 'categoryName',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Content category name (max 100 characters)',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Name',
+        name: 'categoryName',
+        type: 'string',
+        default: '',
+        description: 'Content category name (max 100 characters). Leave blank to keep the current value.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['update'] },
+        },
+      },
+      {
+        displayName: 'Color',
+        name: 'categoryColor',
+        type: 'options',
+        options: COLOR_TOKEN_OPTIONS,
+        default: 'color_1',
+        required: true,
+        description: 'Color token for the category. The backend stores the token (e.g. color_1); the hex is shown for reference only.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Color',
+        name: 'categoryColor',
+        type: 'options',
+        options: [{ name: '(keep current)', value: '' }, ...COLOR_TOKEN_OPTIONS],
+        default: '',
+        description: 'Color token for the category. Leave as "(keep current)" to leave color unchanged.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['update'] },
+        },
+      },
+      {
+        displayName: 'Allowed Members',
+        name: 'categoryAllowedMembers',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getTeamMembers', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        description: 'Team members allowed to use this category (allowed_member_ids). On Update, leave empty to keep the stored list — any selection replaces it.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['create', 'update'] },
+        },
+      },
+      {
+        displayName: 'Accounts',
+        name: 'categoryAccounts',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        description: 'Social accounts attached to the category — a flat list of social account ids. On Update, leave empty to keep the stored list.',
+        displayOptions: {
+          show: { resource: ['contentCategory'], operation: ['create', 'update'] },
+        },
+      },
+
+      // Content Category Slot fields
+      {
+        displayName: 'Slot ID',
+        name: 'slotId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The slot to update or delete (returned by Content Category Slot → List). Unknown ids answer CONTENT_CATEGORY_SLOT_NOT_FOUND.',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['update', 'delete'] },
+        },
+      },
+      {
+        displayName: 'Day',
+        name: 'slotDay',
+        type: 'options',
+        options: SLOT_DAY_OPTIONS,
+        default: 'monday',
+        required: true,
+        description: 'Weekday the slot fires on. Responses also carry weekday_sorting, where Sunday is 0.',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Hour',
+        name: 'slotHour',
+        type: 'number',
+        typeOptions: { minValue: 0, maxValue: 12 },
+        default: 9,
+        required: true,
+        description: 'Hour on a 12-hour clock, as an integer from 0 to 12. The API normalises 12 to 0, so 12 PM and 0 PM both mean noon.',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Minute',
+        name: 'slotMinute',
+        type: 'number',
+        typeOptions: { minValue: 0, maxValue: 59 },
+        default: 0,
+        required: true,
+        description: 'Minute of the hour, 0 to 59',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Period',
+        name: 'slotPeriod',
+        type: 'options',
+        options: [
+          { name: 'AM', value: 'AM' },
+          { name: 'PM', value: 'PM' },
+        ],
+        default: 'AM',
+        required: true,
+        description: 'AM or PM half of the 12-hour clock. A slot repeating an existing day/hour/minute/period answers CONTENT_CATEGORY_SLOT_DUPLICATE.',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Update Fields',
+        name: 'slotUpdateFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        description: 'Only the fields added here are sent; everything else keeps its stored value',
+        options: [
+          {
+            displayName: 'Day',
+            name: 'day',
+            type: 'options',
+            options: SLOT_DAY_OPTIONS,
+            default: 'monday',
+            description: 'Weekday the slot fires on',
+          },
+          {
+            displayName: 'Hour',
+            name: 'hour',
+            type: 'number',
+            typeOptions: { minValue: 0, maxValue: 12 },
+            default: 9,
+            description: 'Hour on a 12-hour clock, 0 to 12 (12 is normalised to 0)',
+          },
+          {
+            displayName: 'Minute',
+            name: 'minute',
+            type: 'number',
+            typeOptions: { minValue: 0, maxValue: 59 },
+            default: 0,
+            description: 'Minute of the hour, 0 to 59',
+          },
+          {
+            displayName: 'Period',
+            name: 'period',
+            type: 'options',
+            options: [
+              { name: 'AM', value: 'AM' },
+              { name: 'PM', value: 'PM' },
+            ],
+            default: 'AM',
+            description: 'AM or PM half of the 12-hour clock',
+          },
+        ],
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['update'] },
+        },
+      },
+      {
+        displayName: 'Post ID',
+        name: 'slotPostId',
+        type: 'string',
+        default: '',
+        description: 'Optional. Ask where an existing post already sits instead of where the next free slot is. When that post is queued into this category and still upcoming, its own time comes back with scheduled: true.',
+        displayOptions: {
+          show: { resource: ['contentCategorySlot'], operation: ['next'] },
+        },
+      },
+
+      // Approval Workflow fields
+      {
+        displayName: 'Workflow ID',
+        name: 'workflowId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The approval workflow to act on. Ids come from Approval Workflow → List, which only returns published workflows — for a draft, use the id returned when it was created. Unknown ids answer APPROVAL_WORKFLOW_NOT_FOUND.',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['get', 'update', 'delete', 'duplicate', 'setDefault', 'removeDefault'] },
+        },
+      },
+      {
+        displayName: 'Cascade Job ID',
+        name: 'cascadeJobId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The cascade job to poll, returned as cascade_job_id by a confirmed Update or a forced Delete. Unknown ids answer CASCADE_JOB_NOT_FOUND.',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['getCascadeJob'] },
+        },
+      },
+      {
+        displayName: 'Name',
+        name: 'workflowName',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Approval workflow name (max 120 characters)',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Levels',
+        name: 'workflowLevels',
+        type: 'json',
+        default: '[\n  {\n    "level_number": 1,\n    "title": "Manager review",\n    "rule": "anyone",\n    "members": [{ "user_id": "" }]\n  }\n]',
+        required: true,
+        description: 'Approval levels as a JSON array, 1 to 5 entries. Each entry needs level_number (1-5, unique across the array), rule ("everyone" or "anyone") and members (an array of { "user_id": "..." }, which may be empty); title is optional. A user_id may not repeat inside one level. Member ids come from Team Member → List.',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Save as Draft',
+        name: 'workflowIsDraft',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to save the workflow as a draft. Drafts are excluded from List and cannot be made default (CANNOT_SET_DRAFT_AS_DEFAULT).',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Update Fields',
+        name: 'workflowUpdateFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        description: 'Only the fields added here are sent; everything else keeps its stored value',
+        options: [
+          {
+            displayName: 'Confirmed',
+            name: 'confirmed',
+            type: 'boolean',
+            default: false,
+            description: 'Whether to confirm an edit that cancels approvals already in flight. The API then answers 202 with a cascade_job_id, which Get Cascade Job polls.',
+          },
+          {
+            displayName: 'Levels',
+            name: 'levels',
+            type: 'json',
+            default: '[]',
+            description: 'Replacement levels as a JSON array, same shape as on Create (1 to 5 entries). Replaces the stored levels wholesale.',
+          },
+          {
+            displayName: 'Name',
+            name: 'name',
+            type: 'string',
+            default: '',
+            description: 'Approval workflow name (max 120 characters)',
+          },
+          {
+            displayName: 'Save as Draft',
+            name: 'is_draft',
+            type: 'boolean',
+            default: false,
+            description: 'Whether the workflow stays a draft. Setting this to false publishes a draft.',
+          },
+        ],
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['update'] },
+        },
+      },
+      {
+        displayName: 'Force Delete',
+        name: 'workflowForceDelete',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to delete even when posts are still in review against this workflow. Without it such a delete is refused with REQUIRES_FORCE_DELETE; with it the API answers 202 and a cascade_job_id, which Get Cascade Job polls.',
+        displayOptions: {
+          show: { resource: ['approvalWorkflow'], operation: ['delete'] },
+        },
+      },
+
+      // Share Link fields
+      {
+        displayName: 'Search',
+        name: 'shareLinkSearch',
+        type: 'string',
+        default: '',
+        description: 'Optional case-insensitive match on the share link name',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['list'] },
+        },
+      },
+      {
+        displayName: 'Share Link ID',
+        name: 'shareLinkId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The share link record id (the id field on the resource), NOT the public slug from the share URL. Unknown ids answer SHARE_LINK_NOT_FOUND.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['get', 'update', 'delete', 'sendInvitations', 'activity'] },
+        },
+      },
+      {
+        displayName: 'Name',
+        name: 'shareLinkName',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Share link name, 3 to 255 characters, letters, digits and spaces only. Punctuation is refused because the name is slugified into the public URL.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Scope',
+        name: 'shareLinkScope',
+        type: 'options',
+        options: [
+          { name: 'Selection', value: 'selection' },
+          { name: 'Future', value: 'future' },
+          { name: 'All', value: 'all' },
+        ],
+        default: 'selection',
+        description: 'What the link shares. Future and All are calendar-only: they require View = Calendar and a Calendar Date, and cannot allow external approval actions.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'View',
+        name: 'shareLinkView',
+        type: 'options',
+        options: [
+          { name: 'List', value: 'list' },
+          { name: 'Calendar', value: 'calendar' },
+          { name: 'Compact List', value: 'compact_list' },
+        ],
+        default: 'list',
+        description: 'How shared content is presented to whoever opens the link',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Calendar Date',
+        name: 'shareLinkCalendarDate',
+        type: 'string',
+        default: '',
+        placeholder: '2026-01-01 - 2026-03-31',
+        description: 'Anchor for the Future/All window. Required for those scopes and refused for Selection. Free-form text: a single date or a "from - to" range.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'], shareLinkScope: ['future', 'all'] },
+        },
+      },
+      {
+        displayName: 'Plans',
+        name: 'shareLinkPlans',
+        type: 'string',
+        default: '',
+        description: 'Comma-separated post (plan) ids to share, max 500. Either Plans or Notes must be provided — Future/All links included, since they snapshot the posts visible at creation. Single Post links need exactly one. Plans cannot be changed later.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Notes',
+        name: 'shareLinkNotes',
+        type: 'string',
+        default: '',
+        description: 'Comma-separated note ids to share, max 500. Either Plans or Notes must be provided.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Show Notes',
+        name: 'shareLinkShowNotes',
+        type: 'boolean',
+        default: false,
+        description: 'Whether notes are visible to whoever opens the link',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Password Protected',
+        name: 'shareLinkIsPasswordProtected',
+        type: 'boolean',
+        default: false,
+        description: 'Whether the link asks for a password before showing anything',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Password',
+        name: 'shareLinkPassword',
+        type: 'string',
+        typeOptions: { password: true },
+        default: '',
+        description: 'Password for the link, 4 to 255 characters. Required while Password Protected is on, and never returned by the API.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'], shareLinkIsPasswordProtected: [true] },
+        },
+      },
+      {
+        displayName: 'Single Post',
+        name: 'shareLinkIsSinglePost',
+        type: 'boolean',
+        default: false,
+        description: 'Whether the link shows one post on a page of its own. Requires Scope = Selection and exactly one plan.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Allow External Comments',
+        name: 'shareLinkAllowExternalComments',
+        type: 'boolean',
+        default: false,
+        description: 'Whether people opening the link can leave comments',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Allow External Approval Actions',
+        name: 'shareLinkAllowExternalApprovalActions',
+        type: 'boolean',
+        default: false,
+        description: 'Whether people opening the link can approve or reject posts. Must stay off when Scope is Future or All.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Social Selections',
+        name: 'shareLinkSocialSelections',
+        type: 'json',
+        default: '{}',
+        description: 'Optional per-platform account selection object, as the planner sends it. Leave as {} to omit.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['create'] },
+        },
+      },
+      {
+        displayName: 'Update Fields',
+        name: 'shareLinkUpdateFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        description: 'Only the fields added here are sent; everything else keeps its stored value. Plans and filters are create-only and are not accepted here.',
+        options: [
+          {
+            displayName: 'Allow External Approval Actions',
+            name: 'allow_external_approval_actions',
+            type: 'boolean',
+            default: false,
+            description: 'Whether people opening the link can approve or reject posts',
+          },
+          {
+            displayName: 'Allow External Comments',
+            name: 'allow_external_comments',
+            type: 'boolean',
+            default: false,
+            description: 'Whether people opening the link can leave comments',
+          },
+          {
+            displayName: 'Approval Emails',
+            name: 'approval_emails',
+            type: 'string',
+            default: '',
+            description: 'Comma-separated email addresses, 1 to 10. Required while Approval Flow is on.',
+          },
+          {
+            displayName: 'Approval Flow',
+            name: 'approval_flow',
+            type: 'boolean',
+            default: false,
+            description: 'Whether external approval is collected on this link. Requires Approval Emails and Approval Option.',
+          },
+          {
+            displayName: 'Approval Option',
+            name: 'approval_option',
+            type: 'options',
+            options: [
+              { name: 'Anyone', value: 'anyone' },
+              { name: 'Everyone', value: 'everyone' },
+            ],
+            default: 'anyone',
+            description: 'Whether one invitee can approve alone, or every invitee must approve',
+          },
+          {
+            displayName: 'Calendar Date',
+            name: 'calendar_date',
+            type: 'string',
+            default: '',
+            description: 'Anchor for a Future/All window, judged against the stored scope',
+          },
+          {
+            displayName: 'Disabled',
+            name: 'is_disabled',
+            type: 'boolean',
+            default: false,
+            description: 'Whether the link is turned off without being deleted',
+          },
+          {
+            displayName: 'Name',
+            name: 'name',
+            type: 'string',
+            default: '',
+            description: 'Share link name, 3 to 255 characters, letters, digits and spaces only',
+          },
+          {
+            displayName: 'Notes',
+            name: 'notes',
+            type: 'string',
+            default: '',
+            description: 'Comma-separated note ids, max 500. Replaces the stored list.',
+          },
+          {
+            displayName: 'Password',
+            name: 'password',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Password for the link, 4 to 255 characters. Required while Password Protected is on.',
+          },
+          {
+            displayName: 'Password Protected',
+            name: 'is_password_protected',
+            type: 'boolean',
+            default: false,
+            description: 'Whether the link asks for a password',
+          },
+          {
+            displayName: 'Scope',
+            name: 'scope',
+            type: 'options',
+            options: [
+              { name: 'Selection', value: 'selection' },
+              { name: 'Future', value: 'future' },
+              { name: 'All', value: 'all' },
+            ],
+            default: 'selection',
+            description: 'What the link shares. Future and All stay calendar-only.',
+          },
+          {
+            displayName: 'Show Notes',
+            name: 'show_notes',
+            type: 'boolean',
+            default: false,
+            description: 'Whether notes are visible to whoever opens the link',
+          },
+          {
+            displayName: 'Social Selections',
+            name: 'social_selections',
+            type: 'json',
+            default: '{}',
+            description: 'Per-platform account selection object',
+          },
+          {
+            displayName: 'View',
+            name: 'view',
+            type: 'options',
+            options: [
+              { name: 'List', value: 'list' },
+              { name: 'Calendar', value: 'calendar' },
+              { name: 'Compact List', value: 'compact_list' },
+            ],
+            default: 'list',
+            description: 'How shared content is presented',
+          },
+        ],
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['update'] },
+        },
+      },
+      {
+        displayName: 'Approval Emails',
+        name: 'shareLinkApprovalEmails',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'Comma-separated email addresses to invite, 1 to 10. Duplicates are refused. Sending invitations turns the approval flow on.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['sendInvitations'] },
+        },
+      },
+      {
+        displayName: 'Approval Option',
+        name: 'shareLinkApprovalOption',
+        type: 'options',
+        options: [
+          { name: 'Anyone', value: 'anyone' },
+          { name: 'Everyone', value: 'everyone' },
+        ],
+        default: 'anyone',
+        required: true,
+        description: 'Whether one invitee can approve alone, or every invitee must approve',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['sendInvitations'] },
+        },
+      },
+      {
+        displayName: 'Activity Type',
+        name: 'shareLinkActivityType',
+        type: 'options',
+        options: [
+          { name: 'All', value: '' },
+          { name: 'Comment', value: 'comment' },
+          { name: 'Action', value: 'action' },
+        ],
+        default: '',
+        description: 'Return only one kind of activity. The response carries total and data.',
+        displayOptions: {
+          show: { resource: ['shareLink'], operation: ['activity'] },
         },
       },
 
@@ -1130,8 +1893,8 @@ export class ContentStudio implements INodeType {
         default: '',
         required: true,
         placeholder: 'Enter post ID',
-        description: 'The ID of the post to delete',
-        displayOptions: { show: { resource: ['post'], operation: ['delete'] } },
+        description: 'The ID of the post to fetch or delete. Get is the same shape as one item of Post → List; a deleted, foreign or malformed id answers 404.',
+        displayOptions: { show: { resource: ['post'], operation: ['get', 'delete'] } },
       },
       {
         displayName: 'Post ID',
@@ -1504,6 +2267,45 @@ export class ContentStudio implements INodeType {
         placeholder: '2025-10-11 11:15:00',
         description: 'Schedule date and time in format: YYYY-MM-DD HH:MM:SS',
         displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'] } },
+      },
+      {
+        displayName: 'Enable Repeat',
+        name: 'enableRepeat',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to republish this post on a fixed interval. Repeat is only supported on scheduled (and immediate) posts, never on queued, draft or content-category posts. It is never inherited on Update: leave this off when updating and any existing repeat schedule is dropped.',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'] } },
+      },
+      {
+        displayName: 'Repeat Type',
+        name: 'repeatType',
+        type: 'options',
+        options: [
+          { name: 'Day', value: 'Day' },
+          { name: 'Week', value: 'Week' },
+          { name: 'Month', value: 'Month' },
+        ],
+        default: 'Week',
+        description: 'Unit the repeat interval is counted in',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'], enableRepeat: [true] } },
+      },
+      {
+        displayName: 'Repeat Times',
+        name: 'repeatTimes',
+        type: 'number',
+        typeOptions: { minValue: 1, maxValue: 30 },
+        default: 2,
+        description: 'How many times the post repeats, 1 to 30',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'], enableRepeat: [true] } },
+      },
+      {
+        displayName: 'Repeat Interval',
+        name: 'repeatGap',
+        type: 'number',
+        typeOptions: { minValue: 1, maxValue: 99 },
+        default: 1,
+        description: 'Gap between repeats, counted in the repeat type unit, 1 to 99. A Day repeat must be at least 3.',
+        displayOptions: { show: { resource: ['post'], operation: ['create', 'update'], publishType: ['scheduled'], enableRepeat: [true] } },
       },
       {
         displayName: 'Enable First Comment',
@@ -2006,6 +2808,16 @@ export class ContentStudio implements INodeType {
         required: true,
         description: 'The job_id returned by Generate / Run Tool / List Jobs',
         displayOptions: { show: { resource: ['aiVideo'], operation: ['get', 'delete'] } },
+      },
+
+      // Limits — plan entitlements and usage
+      {
+        displayName:
+          'Returns "plan", "limits" (always the same 14 entries, in a stable order) and "usage_reset". Each limits entry carries key, label, used, limit, remaining, scope, is_unlimited, is_on_plan, unit, period, resets_at and note. Read "scope" before acting on "remaining": on an "account" entry (workspaces, social accounts, team members, listening topics, automations, media storage) the number is room left across the whole account, not in this workspace — the eight credit counters are "workspace"-scoped. A null "limit" on its own cannot tell unlimited from not-on-this-plan, so branch on "is_unlimited" and "is_on_plan". "unit" is "bytes" for media_storage and "count" everywhere else; "resets_at" is null when "period" is "lifetime". The request-rate ceiling is not part of this response — it is published on every API call as the "X-RateLimit-Limit" / "X-RateLimit-Remaining" response headers. The response is built live on each request and is not cached.',
+        name: 'limitsGetNotice',
+        type: 'notice',
+        default: '',
+        displayOptions: { show: { resource: ['limit'], operation: ['get'] } },
       },
 
       // Scheduling — best times to post
@@ -2799,6 +3611,34 @@ export class ContentStudio implements INodeType {
           },
         };
 
+        // scheduling.repeat — supported on immediate and scheduled posts only,
+        // and never inherited on update: leaving the toggle off drops an
+        // existing repeat schedule instead of preserving it.
+        // The toggle is hidden for publish types the API refuses repeat on, so a
+        // stale stored value is ignored rather than failing the request.
+        const canRepeat = publishType === 'now' || publishType === 'scheduled';
+        const enableRepeat = canRepeat && (this.getNodeParameter('enableRepeat', i, false) as boolean);
+        if (enableRepeat) {
+          const repeatType = (this.getNodeParameter('repeatType', i, 'Week') as string) || 'Week';
+          const repeatTimes = Number(this.getNodeParameter('repeatTimes', i, 2));
+          const repeatGap = Number(this.getNodeParameter('repeatGap', i, 1));
+          if (!Number.isInteger(repeatTimes) || repeatTimes < 1 || repeatTimes > 30) {
+            throw new NodeOperationError(this.getNode(), 'Repeat Times must be a whole number between 1 and 30', { itemIndex: i });
+          }
+          if (!Number.isInteger(repeatGap) || repeatGap < 1 || repeatGap > 99) {
+            throw new NodeOperationError(this.getNode(), 'Repeat Interval must be a whole number between 1 and 99', { itemIndex: i });
+          }
+          if (repeatType === 'Day' && repeatGap < 3) {
+            throw new NodeOperationError(this.getNode(), 'A Day repeat requires an interval of at least 3 days', { itemIndex: i });
+          }
+          (options.body as any).scheduling.repeat = {
+            enabled: true,
+            type: repeatType,
+            times: repeatTimes,
+            gap: repeatGap,
+          };
+        }
+
         if (hasTwitterOptions) {
           (options.body as any).twitter_options = {
             has_threaded_tweets: true,
@@ -3036,6 +3876,14 @@ export class ContentStudio implements INodeType {
         }
       }
 
+      if (resource === 'post' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const postId = ((this.getNodeParameter('postId', i) as string) || '').trim();
+        if (!postId) throw new NodeOperationError(this.getNode(), 'Post ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
+      }
+
       if (resource === 'post' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const postId = this.getNodeParameter('postId', i) as string;
@@ -3112,6 +3960,399 @@ export class ContentStudio implements INodeType {
         if (output !== 'raw') {
           transformResponse = (body) => flattenOptimalTimes(body, output === 'all');
         }
+      }
+
+      if (resource === 'contentCategory' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}`;
+      }
+
+      if (resource === 'contentCategory' && operation === 'create') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const name = ((this.getNodeParameter('categoryName', i) as string) || '').trim();
+        const color = (this.getNodeParameter('categoryColor', i) as string) || '';
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        if (!color) throw new NodeOperationError(this.getNode(), 'Color is required', { itemIndex: i });
+        const allowedMemberIds = parseCommaSeparated(this.getNodeParameter('categoryAllowedMembers', i, []) as unknown);
+        const categoryAccounts = parseCommaSeparated(this.getNodeParameter('categoryAccounts', i, []) as unknown);
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories`;
+        options.body = {
+          name,
+          color,
+          ...(allowedMemberIds.length ? { allowed_member_ids: allowedMemberIds } : {}),
+          ...(categoryAccounts.length ? { accounts: categoryAccounts } : {}),
+        };
+      }
+
+      if (resource === 'contentCategory' && operation === 'update') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        const name = ((this.getNodeParameter('categoryName', i, '') as string) || '').trim();
+        const color = ((this.getNodeParameter('categoryColor', i, '') as string) || '').trim();
+        const allowedMemberIds = parseCommaSeparated(this.getNodeParameter('categoryAllowedMembers', i, []) as unknown);
+        const categoryAccounts = parseCommaSeparated(this.getNodeParameter('categoryAccounts', i, []) as unknown);
+        const body: Record<string, any> = {};
+        if (name) body.name = name;
+        if (color) body.color = color;
+        if (allowedMemberIds.length) body.allowed_member_ids = allowedMemberIds;
+        if (categoryAccounts.length) body.accounts = categoryAccounts;
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}`;
+        options.body = body;
+      }
+
+      if (resource === 'contentCategory' && operation === 'delete') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        options.method = 'DELETE';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}`;
+      }
+
+      if (resource === 'contentCategory' && operation === 'shuffle') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        // A category with nothing upcoming is still a success: shuffled_posts_count is 0.
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/shuffle`;
+      }
+
+      if (resource === 'contentCategorySlot' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots`;
+      }
+
+      if (resource === 'contentCategorySlot' && operation === 'create') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        const day = (this.getNodeParameter('slotDay', i) as string) || '';
+        const hour = Number(this.getNodeParameter('slotHour', i));
+        const minute = Number(this.getNodeParameter('slotMinute', i));
+        const period = (this.getNodeParameter('slotPeriod', i) as string) || '';
+        if (!Number.isInteger(hour) || hour < 0 || hour > 12) {
+          throw new NodeOperationError(this.getNode(), 'Hour must be an integer between 0 and 12 (12-hour clock)', { itemIndex: i });
+        }
+        if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
+          throw new NodeOperationError(this.getNode(), 'Minute must be an integer between 0 and 59', { itemIndex: i });
+        }
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots`;
+        options.body = { day, hour, minute, period };
+      }
+
+      if (resource === 'contentCategorySlot' && operation === 'update') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        const slotId = ((this.getNodeParameter('slotId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        if (!slotId) throw new NodeOperationError(this.getNode(), 'Slot ID is required', { itemIndex: i });
+        const fields = this.getNodeParameter('slotUpdateFields', i, {}) as Record<string, any>;
+        const body: Record<string, any> = {};
+        if (typeof fields.day === 'string' && fields.day) body.day = fields.day;
+        if (typeof fields.period === 'string' && fields.period) body.period = fields.period;
+        if (fields.hour !== undefined && fields.hour !== null && fields.hour !== '') {
+          const hour = Number(fields.hour);
+          if (!Number.isInteger(hour) || hour < 0 || hour > 12) {
+            throw new NodeOperationError(this.getNode(), 'Hour must be an integer between 0 and 12 (12-hour clock)', { itemIndex: i });
+          }
+          body.hour = hour;
+        }
+        if (fields.minute !== undefined && fields.minute !== null && fields.minute !== '') {
+          const minute = Number(fields.minute);
+          if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
+            throw new NodeOperationError(this.getNode(), 'Minute must be an integer between 0 and 59', { itemIndex: i });
+          }
+          body.minute = minute;
+        }
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots/${slotId}`;
+        options.body = body;
+      }
+
+      if (resource === 'contentCategorySlot' && operation === 'delete') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        const slotId = ((this.getNodeParameter('slotId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        if (!slotId) throw new NodeOperationError(this.getNode(), 'Slot ID is required', { itemIndex: i });
+        options.method = 'DELETE';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots/${slotId}`;
+      }
+
+      if (resource === 'contentCategorySlot' && operation === 'next') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        const slotPostId = ((this.getNodeParameter('slotPostId', i, '') as string) || '').trim();
+        // A category with no free slot answers 200 with next_slot: null.
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots/next`;
+        if (slotPostId) options.qs = { post_id: slotPostId };
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'create') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const name = ((this.getNodeParameter('workflowName', i) as string) || '').trim();
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        const levels = parseJsonArray(this.getNode(), this.getNodeParameter('workflowLevels', i) as unknown, 'Levels');
+        if (levels.length === 0) throw new NodeOperationError(this.getNode(), 'Levels must contain at least one approval level', { itemIndex: i });
+        const isDraft = this.getNodeParameter('workflowIsDraft', i, false) as boolean;
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows`;
+        options.body = { name, levels, is_draft: isDraft };
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'update') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        const fields = this.getNodeParameter('workflowUpdateFields', i, {}) as Record<string, any>;
+        const body: Record<string, any> = {};
+        if (typeof fields.name === 'string' && fields.name.trim()) body.name = fields.name.trim();
+        if (fields.levels !== undefined && fields.levels !== null && fields.levels !== '') {
+          const levels = parseJsonArray(this.getNode(), fields.levels, 'Levels');
+          if (levels.length === 0) throw new NodeOperationError(this.getNode(), 'Levels must contain at least one approval level', { itemIndex: i });
+          body.levels = levels;
+        }
+        if (typeof fields.is_draft === 'boolean') body.is_draft = fields.is_draft;
+        // `confirmed` opts in to cancelling approvals already in flight; the API
+        // then answers 202 with a cascade_job_id instead of the updated workflow.
+        if (typeof fields.confirmed === 'boolean') body.confirmed = fields.confirmed;
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
+        options.body = body;
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'delete') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        const force = this.getNodeParameter('workflowForceDelete', i, false) as boolean;
+        options.method = 'DELETE';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
+        // Without force a workflow with posts in review answers REQUIRES_FORCE_DELETE.
+        if (force) options.qs = { force: 'true' };
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'duplicate') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/duplicate`;
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'setDefault') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        // A draft cannot be the default: CANNOT_SET_DRAFT_AS_DEFAULT.
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/set-default`;
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'removeDefault') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/remove-default`;
+      }
+
+      if (resource === 'approvalWorkflow' && operation === 'getCascadeJob') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const cascadeJobId = ((this.getNodeParameter('cascadeJobId', i) as string) || '').trim();
+        if (!cascadeJobId) throw new NodeOperationError(this.getNode(), 'Cascade Job ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/cascade-jobs/${cascadeJobId}`;
+      }
+
+      if (resource === 'shareLink' && operation === 'list') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const page = this.getNodeParameter('page', i) as number;
+        const perPage = this.getNodeParameter('perPage', i) as number;
+        const search = ((this.getNodeParameter('shareLinkSearch', i, '') as string) || '').trim();
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links`;
+        const qs: Record<string, any> = { page, per_page: perPage };
+        if (search) qs.search = search;
+        options.qs = qs;
+      }
+
+      if (resource === 'shareLink' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}`;
+      }
+
+      if (resource === 'shareLink' && operation === 'create') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const name = ((this.getNodeParameter('shareLinkName', i) as string) || '').trim();
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        const scope = (this.getNodeParameter('shareLinkScope', i, 'selection') as string) || 'selection';
+        const view = (this.getNodeParameter('shareLinkView', i, 'list') as string) || 'list';
+        const plans = parseCommaSeparated(this.getNodeParameter('shareLinkPlans', i, '') as unknown);
+        const notes = parseCommaSeparated(this.getNodeParameter('shareLinkNotes', i, '') as unknown);
+        const isPasswordProtected = this.getNodeParameter('shareLinkIsPasswordProtected', i, false) as boolean;
+        const password = ((this.getNodeParameter('shareLinkPassword', i, '') as string) || '').trim();
+        const isSinglePost = this.getNodeParameter('shareLinkIsSinglePost', i, false) as boolean;
+        const allowExternalApprovalActions = this.getNodeParameter('shareLinkAllowExternalApprovalActions', i, false) as boolean;
+        const socialSelections = parseJsonObject(this.getNode(), this.getNodeParameter('shareLinkSocialSelections', i, '{}') as unknown, 'Social Selections');
+        // future/all are calendar-only windows: they need an anchor date, cannot
+        // collect external approvals, and still require plans or notes.
+        const isWindowScope = scope === 'future' || scope === 'all';
+        const calendarDate = ((this.getNodeParameter('shareLinkCalendarDate', i, '') as string) || '').trim();
+
+        if (plans.length === 0 && notes.length === 0) {
+          throw new NodeOperationError(this.getNode(), 'Either Plans or Notes is required', { itemIndex: i });
+        }
+        if (isWindowScope && view !== 'calendar') {
+          throw new NodeOperationError(this.getNode(), 'Scope "future" and "all" are only available on the Calendar view', { itemIndex: i });
+        }
+        if (isWindowScope && !calendarDate) {
+          throw new NodeOperationError(this.getNode(), 'Calendar Date is required when Scope is Future or All', { itemIndex: i });
+        }
+        if (isWindowScope && allowExternalApprovalActions) {
+          throw new NodeOperationError(this.getNode(), 'External approval actions cannot be enabled when Scope is Future or All', { itemIndex: i });
+        }
+        if (isPasswordProtected && !password) {
+          throw new NodeOperationError(this.getNode(), 'Password is required when Password Protected is enabled', { itemIndex: i });
+        }
+        if (isSinglePost && isWindowScope) {
+          throw new NodeOperationError(this.getNode(), 'Single Post links require Scope "selection"', { itemIndex: i });
+        }
+        if (isSinglePost && plans.length !== 1) {
+          throw new NodeOperationError(this.getNode(), 'Single Post links require exactly one plan', { itemIndex: i });
+        }
+
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links`;
+        options.body = {
+          name,
+          scope,
+          view,
+          // Sent only for future/all; the API refuses an anchor on a selection link.
+          ...(isWindowScope ? { calendar_date: calendarDate } : {}),
+          ...(plans.length ? { plans } : {}),
+          ...(notes.length ? { notes } : {}),
+          show_notes: this.getNodeParameter('shareLinkShowNotes', i, false) as boolean,
+          is_password_protected: isPasswordProtected,
+          ...(isPasswordProtected ? { password } : {}),
+          is_single_post: isSinglePost,
+          allow_external_comments: this.getNodeParameter('shareLinkAllowExternalComments', i, false) as boolean,
+          allow_external_approval_actions: allowExternalApprovalActions,
+          ...(Object.keys(socialSelections).length ? { social_selections: socialSelections } : {}),
+        };
+      }
+
+      if (resource === 'shareLink' && operation === 'update') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
+        const fields = this.getNodeParameter('shareLinkUpdateFields', i, {}) as Record<string, any>;
+        const body: Record<string, any> = {};
+
+        for (const key of ['name', 'scope', 'view', 'calendar_date', 'approval_option'] as const) {
+          const value = fields[key];
+          if (typeof value === 'string' && value.trim()) body[key] = value.trim();
+        }
+        for (const key of [
+          'show_notes',
+          'is_disabled',
+          'is_password_protected',
+          'allow_external_comments',
+          'allow_external_approval_actions',
+          'approval_flow',
+        ] as const) {
+          if (typeof fields[key] === 'boolean') body[key] = fields[key];
+        }
+        if (typeof fields.password === 'string' && fields.password) body.password = fields.password;
+        if (fields.notes !== undefined && fields.notes !== null && fields.notes !== '') {
+          body.notes = parseCommaSeparated(fields.notes);
+        }
+        if (fields.approval_emails !== undefined && fields.approval_emails !== null && fields.approval_emails !== '') {
+          const approvalEmails = parseCommaSeparated(fields.approval_emails);
+          if (approvalEmails.length < 1 || approvalEmails.length > 10) {
+            throw new NodeOperationError(this.getNode(), `Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`, { itemIndex: i });
+          }
+          body.approval_emails = approvalEmails;
+        }
+        if (fields.social_selections !== undefined && fields.social_selections !== null && fields.social_selections !== '') {
+          const socialSelections = parseJsonObject(this.getNode(), fields.social_selections, 'Social Selections');
+          if (Object.keys(socialSelections).length) body.social_selections = socialSelections;
+        }
+        if (body.is_password_protected === true && !body.password) {
+          throw new NodeOperationError(this.getNode(), 'Password is required when Password Protected is enabled', { itemIndex: i });
+        }
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
+
+        // `plans` and `filters` are create-only on the API and are not sent here.
+        options.method = 'PUT';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}`;
+        options.body = body;
+      }
+
+      if (resource === 'shareLink' && operation === 'delete') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
+        options.method = 'DELETE';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}`;
+      }
+
+      if (resource === 'shareLink' && operation === 'sendInvitations') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
+        const approvalEmails = parseCommaSeparated(this.getNodeParameter('shareLinkApprovalEmails', i, '') as unknown);
+        if (approvalEmails.length < 1 || approvalEmails.length > 10) {
+          throw new NodeOperationError(this.getNode(), `Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`, { itemIndex: i });
+        }
+        if (new Set(approvalEmails.map((email) => email.toLowerCase())).size !== approvalEmails.length) {
+          throw new NodeOperationError(this.getNode(), 'Approval Emails must not repeat an address', { itemIndex: i });
+        }
+        const approvalOption = (this.getNodeParameter('shareLinkApprovalOption', i, 'anyone') as string) || 'anyone';
+        options.method = 'POST';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}/send-invitations`;
+        options.body = { approval_emails: approvalEmails, approval_option: approvalOption };
+      }
+
+      if (resource === 'shareLink' && operation === 'activity') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
+        const activityType = ((this.getNodeParameter('shareLinkActivityType', i, '') as string) || '').trim();
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}/activity`;
+        if (activityType) options.qs = { type: activityType };
+      }
+
+      if (resource === 'limit' && operation === 'get') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        options.method = 'GET';
+        options.url = `${baseRoot}/v1/workspaces/${workspaceId}/limits`;
       }
 
       const response = await this.helpers.httpRequestWithAuthentication.call(
