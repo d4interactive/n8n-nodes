@@ -1,6 +1,6 @@
 import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties, INodePropertyOptions, JsonObject } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
-import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
+import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts, getWebhookEventTypes } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseJsonArray, parseSchedulingEntityRefs, flattenOptimalTimes, SCHEDULING_PLATFORMS } from './utils';
 import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
@@ -250,6 +250,7 @@ export class ContentStudio implements INodeType {
           { name: 'Share Link', value: 'shareLink' },
           { name: 'Social Account', value: 'socialAccount' },
           { name: 'Team Member', value: 'teamMember' },
+          { name: 'Webhook', value: 'webhook' },
           { name: 'Workspace', value: 'workspace' },
         ],
         default: 'auth',
@@ -339,6 +340,24 @@ export class ContentStudio implements INodeType {
           { name: 'Update', value: 'update', action: 'Update a Content Category Slot' },
           { name: 'Delete', value: 'delete', action: 'Delete a Content Category Slot' },
           { name: 'Next Slot', value: 'next', action: 'Get the next Content Category Slot' },
+        ],
+        default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['webhook'] } },
+        options: [
+          { name: 'Get Event Types', value: 'getEventTypes', action: 'Get Webhook event types' },
+          { name: 'List', value: 'list', action: 'List Webhooks' },
+          { name: 'Get', value: 'get', action: 'Get a Webhook' },
+          { name: 'Create', value: 'create', action: 'Create a Webhook' },
+          { name: 'Update', value: 'update', action: 'Update a Webhook' },
+          { name: 'Delete', value: 'delete', action: 'Delete a Webhook' },
+          { name: 'Rotate Secret', value: 'rotateSecret', action: 'Rotate a Webhook signing secret' },
+          { name: 'Get Deliveries', value: 'getDeliveries', action: 'Get Webhook delivery logs' },
         ],
         default: 'list',
       },
@@ -515,7 +534,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'contentCategorySlot', 'label', 'campaign', 'limit', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'scheduling', 'aiVideo', 'aiImage'],
+            resource: ['socialAccount', 'contentCategory', 'contentCategorySlot', 'label', 'campaign', 'limit', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'scheduling', 'aiVideo', 'aiImage', 'webhook'],
           },
         },
       },
@@ -1188,6 +1207,185 @@ export class ContentStudio implements INodeType {
         displayOptions: {
           show: { resource: ['approvalWorkflow'], operation: ['delete'] },
         },
+      },
+
+      // Webhook fields. Webhooks belong to the API key's user, not the workspace:
+      // every workspace returns the same webhooks and workspaceId only picks whose
+      // API credits the call spends (1 credit per call).
+      {
+        displayName: 'Webhook ID',
+        name: 'webhookId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The webhook id (the id field on the webhook). Unknown ids answer 404 WEBHOOK_NOT_FOUND.',
+        displayOptions: {
+          show: { resource: ['webhook'], operation: ['get', 'update', 'delete', 'rotateSecret', 'getDeliveries'] },
+        },
+      },
+      {
+        displayName: 'URL',
+        name: 'webhookUrl',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'https://example.com/hooks/contentstudio',
+        description: 'HTTPS endpoint that receives the events. It must be publicly reachable: internal/private URLs are refused (422 WEBHOOK_URL_NOT_ALLOWED) and the URL is pinged before saving — it must answer 2xx within 5 seconds (422 WEBHOOK_PREFLIGHT_FAILED). A user can own at most 5 webhooks (422 WEBHOOK_LIMIT_REACHED).',
+        displayOptions: { show: { resource: ['webhook'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Event Types',
+        name: 'webhookEventTypes',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getWebhookEventTypes', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        required: true,
+        description: 'Events to subscribe to (event_types, at least one) — values come from the Get Event Types operation',
+        displayOptions: { show: { resource: ['webhook'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Name',
+        name: 'webhookName',
+        type: 'string',
+        default: '',
+        description: 'Optional label for the webhook (max 120 characters)',
+        displayOptions: { show: { resource: ['webhook'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Secret',
+        name: 'webhookSecret',
+        type: 'string',
+        typeOptions: { password: true },
+        default: '',
+        description: 'Optional signing secret; must start with whsec_. Leave empty to have one generated. The secret is returned only in the Create and Rotate Secret responses — store it then.',
+        displayOptions: { show: { resource: ['webhook'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Custom Headers',
+        name: 'webhookCustomHeaders',
+        type: 'json',
+        default: '{}',
+        description: 'Optional extra headers sent with every delivery (custom_headers) — a JSON object of string values, e.g. {"X-Source": "contentstudio"}',
+        displayOptions: { show: { resource: ['webhook'], operation: ['create'] } },
+      },
+      {
+        displayName: 'Update Fields',
+        name: 'webhookUpdateFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        description: 'Only the fields added here are sent; everything else keeps its stored value. The secret cannot be changed here — use Rotate Secret.',
+        displayOptions: { show: { resource: ['webhook'], operation: ['update'] } },
+        options: [
+          {
+            displayName: 'Custom Headers',
+            name: 'custom_headers',
+            type: 'json',
+            default: '{}',
+            description: 'JSON object of string header values; replaces the stored custom_headers',
+          },
+          {
+            displayName: 'Event Types',
+            name: 'event_types',
+            type: 'multiOptions',
+            typeOptions: { loadOptionsMethod: 'getWebhookEventTypes', loadOptionsDependsOn: ['workspaceId'] },
+            default: [],
+            description: 'Replaces the subscribed event_types (at least one)',
+          },
+          {
+            displayName: 'Name',
+            name: 'name',
+            type: 'string',
+            default: '',
+            description: 'Webhook label (max 120 characters)',
+          },
+          {
+            displayName: 'Status',
+            name: 'status',
+            type: 'options',
+            options: [
+              { name: 'Enabled', value: 'enabled' },
+              { name: 'Disabled', value: 'disabled' },
+            ],
+            default: 'enabled',
+            description: 'Enable or disable deliveries. Re-enabling a webhook the system disabled (disabled_by_system) is done by setting Enabled.',
+          },
+          {
+            displayName: 'URL',
+            name: 'url',
+            type: 'string',
+            default: '',
+            description: 'New HTTPS endpoint; subject to the same public-URL check and 2xx ping as Create',
+          },
+        ],
+      },
+      {
+        displayName: 'Page',
+        name: 'webhookDeliveriesPage',
+        type: 'number',
+        default: 1,
+        typeOptions: { minValue: 1 },
+        displayOptions: { show: { resource: ['webhook'], operation: ['getDeliveries'] } },
+      },
+      {
+        displayName: 'Per Page',
+        name: 'webhookDeliveriesPerPage',
+        type: 'number',
+        default: 25,
+        typeOptions: { minValue: 1, maxValue: 100 },
+        displayOptions: { show: { resource: ['webhook'], operation: ['getDeliveries'] } },
+      },
+      {
+        displayName: 'Filters',
+        name: 'webhookDeliveriesFilters',
+        type: 'collection',
+        placeholder: 'Add Filter',
+        default: {},
+        description: 'Optional delivery-log filters. The response is flat: current_page, per_page, total, last_page, from, to and data.',
+        displayOptions: { show: { resource: ['webhook'], operation: ['getDeliveries'] } },
+        options: [
+          {
+            displayName: 'Event Type',
+            name: 'event_type',
+            type: 'options',
+            typeOptions: { loadOptionsMethod: 'getWebhookEventTypes', loadOptionsDependsOn: ['workspaceId'] },
+            default: '',
+            description: 'Only deliveries of this event type',
+          },
+          {
+            displayName: 'From',
+            name: 'from',
+            type: 'dateTime',
+            default: '',
+            description: 'Only deliveries at or after this time (ISO 8601)',
+          },
+          {
+            displayName: 'Search',
+            name: 'search',
+            type: 'string',
+            default: '',
+            description: 'Free-text search across the delivery log',
+          },
+          {
+            displayName: 'Status',
+            name: 'status',
+            type: 'options',
+            options: [
+              { name: 'All', value: 'all' },
+              { name: 'Successful', value: 'successful' },
+              { name: 'Failed', value: 'failed' },
+            ],
+            default: 'all',
+            description: 'Filter by delivery outcome',
+          },
+          {
+            displayName: 'To',
+            name: 'to',
+            type: 'dateTime',
+            default: '',
+            description: 'Only deliveries at or before this time (ISO 8601)',
+          },
+        ],
       },
 
       // Share Link fields
@@ -2886,6 +3084,7 @@ export class ContentStudio implements INodeType {
       getFacebookBackgrounds,
       getApprovalWorkflows,
       getSchedulingAccounts,
+      getWebhookEventTypes,
     },
   };
 
@@ -4347,6 +4546,93 @@ export class ContentStudio implements INodeType {
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}/activity`;
         if (activityType) options.qs = { type: activityType };
+      }
+
+      if (resource === 'webhook') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const webhooksBase = `${baseRoot}/v1/workspaces/${workspaceId}/webhooks`;
+        const needsId = ['get', 'update', 'delete', 'rotateSecret', 'getDeliveries'].includes(operation);
+        const webhookId = needsId ? ((this.getNodeParameter('webhookId', i) as string) || '').trim() : '';
+        if (needsId && !webhookId) throw new NodeOperationError(this.getNode(), 'Webhook ID is required', { itemIndex: i });
+
+        if (operation === 'getEventTypes') {
+          options.method = 'GET';
+          options.url = `${webhooksBase}/event-types`;
+        }
+
+        if (operation === 'list') {
+          options.method = 'GET';
+          options.url = webhooksBase;
+        }
+
+        if (operation === 'get') {
+          options.method = 'GET';
+          options.url = `${webhooksBase}/${webhookId}`;
+        }
+
+        if (operation === 'create') {
+          const url = ((this.getNodeParameter('webhookUrl', i) as string) || '').trim();
+          if (!url) throw new NodeOperationError(this.getNode(), 'URL is required', { itemIndex: i });
+          const eventTypes = (this.getNodeParameter('webhookEventTypes', i, []) as string[]) || [];
+          if (eventTypes.length === 0) throw new NodeOperationError(this.getNode(), 'Select at least one Event Type', { itemIndex: i });
+          const name = ((this.getNodeParameter('webhookName', i, '') as string) || '').trim();
+          const secret = ((this.getNodeParameter('webhookSecret', i, '') as string) || '').trim();
+          if (secret && !secret.startsWith('whsec_')) {
+            throw new NodeOperationError(this.getNode(), 'Secret must start with whsec_', { itemIndex: i });
+          }
+          const customHeaders = parseJsonObject(this.getNode(), this.getNodeParameter('webhookCustomHeaders', i, '{}') as unknown, 'Custom Headers');
+          options.method = 'POST';
+          options.url = webhooksBase;
+          options.body = {
+            url,
+            event_types: eventTypes,
+            ...(name ? { name } : {}),
+            ...(secret ? { secret } : {}),
+            ...(Object.keys(customHeaders).length ? { custom_headers: customHeaders } : {}),
+          };
+        }
+
+        if (operation === 'update') {
+          const fields = this.getNodeParameter('webhookUpdateFields', i, {}) as Record<string, any>;
+          const body: Record<string, any> = {};
+          for (const key of ['url', 'name', 'status'] as const) {
+            const value = fields[key];
+            if (typeof value === 'string' && value.trim()) body[key] = value.trim();
+          }
+          if (Array.isArray(fields.event_types) && fields.event_types.length) body.event_types = fields.event_types;
+          if (fields.custom_headers !== undefined && fields.custom_headers !== null && fields.custom_headers !== '') {
+            body.custom_headers = parseJsonObject(this.getNode(), fields.custom_headers, 'Custom Headers');
+          }
+          if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
+          options.method = 'PUT';
+          options.url = `${webhooksBase}/${webhookId}`;
+          options.body = body;
+        }
+
+        if (operation === 'delete') {
+          options.method = 'DELETE';
+          options.url = `${webhooksBase}/${webhookId}`;
+        }
+
+        if (operation === 'rotateSecret') {
+          options.method = 'POST';
+          options.url = `${webhooksBase}/${webhookId}/rotate-secret`;
+        }
+
+        if (operation === 'getDeliveries') {
+          const filters = this.getNodeParameter('webhookDeliveriesFilters', i, {}) as Record<string, any>;
+          const qs: Record<string, any> = {
+            page: this.getNodeParameter('webhookDeliveriesPage', i, 1) as number,
+            per_page: this.getNodeParameter('webhookDeliveriesPerPage', i, 25) as number,
+          };
+          for (const key of ['status', 'event_type', 'from', 'to', 'search'] as const) {
+            const value = filters[key];
+            if (typeof value === 'string' && value.trim()) qs[key] = value.trim();
+          }
+          options.method = 'GET';
+          options.url = `${webhooksBase}/${webhookId}/deliveries`;
+          options.qs = qs;
+        }
       }
 
       if (resource === 'limit' && operation === 'get') {

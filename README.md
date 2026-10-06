@@ -46,6 +46,7 @@ The API base URL is built into the node, so users only need to provide their API
 - **Content Category Slot**: List, create, update, delete slots, and look up the next slot
 - **Approval Workflow**: List, get, create, update, delete, duplicate, set/remove default, and poll cascade jobs
 - **Share Link**: List, get, create, update, delete share links, send approval invitations, and read activity
+- **Webhook**: List event types; list, get, create, update, delete webhooks; rotate the signing secret; and read delivery logs (webhooks belong to the API key's user — the workspace only selects whose API credits are used)
 - **Limit**: Get plan limits and current usage for a workspace
 
 ### Post Operations

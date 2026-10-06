@@ -10,6 +10,7 @@ exports.getContentCategories = getContentCategories;
 exports.getFacebookBackgrounds = getFacebookBackgrounds;
 exports.getApprovalWorkflows = getApprovalWorkflows;
 exports.getTeamMembers = getTeamMembers;
+exports.getWebhookEventTypes = getWebhookEventTypes;
 const n8n_workflow_1 = require("n8n-workflow");
 const utils_1 = require("./utils");
 const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
@@ -411,5 +412,33 @@ async function getTeamMembers() {
     }
     catch (error) {
         throw loadOptionsError(this, error, 'Team Members');
+    }
+}
+async function getWebhookEventTypes() {
+    try {
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
+        const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
+        if (!workspaceId)
+            return [];
+        const body = await apiRequest(this, {
+            method: 'GET',
+            url: `${baseRoot}/v1/workspaces/${workspaceId}/webhooks/event-types`,
+        });
+        const list = extractListFromBody(body);
+        return list
+            .map((t) => {
+            const value = t === null || t === void 0 ? void 0 : t.value;
+            if (!value)
+                return null;
+            return {
+                name: (t === null || t === void 0 ? void 0 : t.label) ? `${t.label} (${value})` : String(value),
+                value: String(value),
+                description: (t === null || t === void 0 ? void 0 : t.description) || undefined,
+            };
+        })
+            .filter((o) => !!o);
+    }
+    catch (error) {
+        throw loadOptionsError(this, error, 'Webhook Event Types');
     }
 }
