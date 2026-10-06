@@ -32,8 +32,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "icons"
+    "dist"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
@@ -41,7 +40,7 @@
       "dist/nodes/ContentStudio/ContentStudio.node.js"
     ],
     "credentials": [
-      "dist/credentials/ContentStudio.credentials.js"
+      "dist/credentials/ContentStudioApi.credentials.js"
     ]
   },
   "scripts": {

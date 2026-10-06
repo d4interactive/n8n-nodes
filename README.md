@@ -29,6 +29,10 @@ This node requires a ContentStudio API key:
 
 The API base URL is built into the node, so users only need to provide their API key.
 
+> **Upgrading from 2.0.x:** the credential type was renamed from `contentStudio` to
+> `contentStudioApi` to follow n8n's naming convention. Existing workflows need the
+> ContentStudio credential re-selected on each node after the upgrade.
+
 ## Operations
 
 ### Resources

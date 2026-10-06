@@ -10,9 +10,10 @@ exports.getContentCategories = getContentCategories;
 exports.getFacebookBackgrounds = getFacebookBackgrounds;
 exports.getApprovalWorkflows = getApprovalWorkflows;
 exports.getTeamMembers = getTeamMembers;
+const n8n_workflow_1 = require("n8n-workflow");
 const utils_1 = require("./utils");
-const ContentStudio_credentials_1 = require("../../credentials/ContentStudio.credentials");
-const CREDENTIALS_TYPE = 'contentStudio';
+const ContentStudioApi_credentials_1 = require("../../credentials/ContentStudioApi.credentials");
+const CREDENTIALS_TYPE = 'contentStudioApi';
 function safeStringify(value) {
     try {
         return JSON.stringify(value);
@@ -38,6 +39,18 @@ function extractHttpErrorDetails(error) {
     const body = (_f = (_d = (_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.body) !== null && _d !== void 0 ? _d : (_e = error === null || error === void 0 ? void 0 : error.response) === null || _e === void 0 ? void 0 : _e.data) !== null && _f !== void 0 ? _f : (_h = (_g = error === null || error === void 0 ? void 0 : error.cause) === null || _g === void 0 ? void 0 : _g.response) === null || _h === void 0 ? void 0 : _h.data;
     const apiMessage = extractApiErrorMessage(body) || (error === null || error === void 0 ? void 0 : error.message) || String(error);
     return { statusCode, apiMessage };
+}
+// Wrap a failed load-options request so the workflow UI can surface it properly.
+// `withAccessHint` adds the workspace-permissions hint used by the account pickers.
+function loadOptionsError(ctx, error, label, withAccessHint = false) {
+    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+    const hint = withAccessHint && statusCode === 403
+        ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
+        : '';
+    return new n8n_workflow_1.NodeApiError(ctx.getNode(), error, {
+        message: `Failed to load ${label}`,
+        description: `(${statusCode}) ${apiMessage}${hint}`,
+    });
 }
 async function apiRequest(ctx, options) {
     return ctx.helpers.httpRequestWithAuthentication.call(ctx, CREDENTIALS_TYPE, {
@@ -84,7 +97,7 @@ function parseSelectedAccountIds(val) {
 async function getCarouselAccounts() {
     var _a, _b;
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -130,14 +143,13 @@ async function getCarouselAccounts() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Carousel Accounts: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Carousel Accounts');
     }
 }
 async function getFirstCommentAccounts() {
     var _a, _b;
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -182,13 +194,12 @@ async function getFirstCommentAccounts() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load First Comment Accounts: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'First Comment Accounts');
     }
 }
 async function getWorkspaces() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const body = await apiRequest(this, {
             method: 'GET',
             url: `${baseRoot}/v1/workspaces`,
@@ -206,13 +217,12 @@ async function getWorkspaces() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Workspaces');
     }
 }
 async function getPosts() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -236,14 +246,13 @@ async function getPosts() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Posts: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Posts');
     }
 }
 async function getAccounts() {
     let workspaceId = '';
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -258,17 +267,13 @@ async function getAccounts() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        const hint = statusCode === 403
-            ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
-            : '';
-        throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+        throw loadOptionsError(this, error, `Accounts for workspace ${workspaceId}`, true);
     }
 }
 async function getSchedulingAccounts() {
     let workspaceId = '';
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -296,16 +301,12 @@ async function getSchedulingAccounts() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        const hint = statusCode === 403
-            ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
-            : '';
-        throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+        throw loadOptionsError(this, error, `Accounts for workspace ${workspaceId}`, true);
     }
 }
 async function getContentCategories() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -326,13 +327,12 @@ async function getContentCategories() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Content Categories: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Content Categories');
     }
 }
 async function getFacebookBackgrounds() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const body = await apiRequest(this, {
             method: 'GET',
             url: `${baseRoot}/v1/facebook/text-backgrounds`,
@@ -355,13 +355,12 @@ async function getFacebookBackgrounds() {
         return out;
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Facebook Text Backgrounds: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Facebook Text Backgrounds');
     }
 }
 async function getApprovalWorkflows() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -383,13 +382,12 @@ async function getApprovalWorkflows() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Approval Workflows: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Approval Workflows');
     }
 }
 async function getTeamMembers() {
     try {
-        const baseRoot = (0, utils_1.normalizeBase)(ContentStudio_credentials_1.BASE_URL);
+        const baseRoot = (0, utils_1.normalizeBase)(ContentStudioApi_credentials_1.BASE_URL);
         const workspaceId = this.getCurrentNodeParameter('workspaceId') || '';
         if (!workspaceId)
             return [];
@@ -412,7 +410,6 @@ async function getTeamMembers() {
             .filter((o) => !!o);
     }
     catch (error) {
-        const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-        throw new Error(`Failed to load Team Members: (${statusCode}) ${apiMessage}`);
+        throw loadOptionsError(this, error, 'Team Members');
     }
 }

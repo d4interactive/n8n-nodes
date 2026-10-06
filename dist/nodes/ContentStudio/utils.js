@@ -13,6 +13,7 @@ exports.parseSlotHour = parseSlotHour;
 exports.flattenOptimalTimes = flattenOptimalTimes;
 exports.parseMediaImages = parseMediaImages;
 exports.parseMediaVideo = parseMediaVideo;
+const n8n_workflow_1 = require("n8n-workflow");
 // Normalize base URL by removing trailing slash and optional /v1 suffix
 function normalizeBase(u) {
     return (u || '').replace(/\/$/, '').replace(/\/v1$/, '');
@@ -44,7 +45,8 @@ function parseAccounts(val) {
 }
 // Attempt to parse string into object/array, otherwise return trimmed string
 // Coerce an n8n "json" field value (object or JSON string) into a plain object.
-function parseJsonObject(val, fieldLabel = 'Permissions') {
+// Takes the node so an invalid value surfaces as a NodeOperationError in the UI.
+function parseJsonObject(node, val, fieldLabel = 'Permissions') {
     if (val == null)
         return {};
     if (typeof val === 'object')
@@ -58,13 +60,13 @@ function parseJsonObject(val, fieldLabel = 'Permissions') {
             return typeof parsed === 'object' && parsed !== null ? parsed : {};
         }
         catch {
-            throw new Error(`${fieldLabel} must be a valid JSON object`);
+            throw new n8n_workflow_1.NodeOperationError(node, `${fieldLabel} must be a valid JSON object`);
         }
     }
     return {};
 }
 // Coerce an n8n "json" field value (array or JSON string) into a plain array.
-function parseJsonArray(val, fieldLabel) {
+function parseJsonArray(node, val, fieldLabel) {
     if (val == null)
         return [];
     if (Array.isArray(val))
@@ -79,10 +81,10 @@ function parseJsonArray(val, fieldLabel) {
                 return parsed;
         }
         catch {
-            throw new Error(`${fieldLabel} must be a valid JSON array`);
+            throw new n8n_workflow_1.NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
         }
     }
-    throw new Error(`${fieldLabel} must be a valid JSON array`);
+    throw new n8n_workflow_1.NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
 }
 function parseMaybeObject(val) {
     const t = (val || '').trim();

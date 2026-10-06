@@ -10,8 +10,8 @@ import type {
 const DISPLAY_NAME = 'ContentStudio API';
 export const BASE_URL = 'https://api-prod.contentstudio.io/api';
 
-export class ContentStudio implements ICredentialType {
-  name = 'contentStudio';
+export class ContentStudioApi implements ICredentialType {
+  name = 'contentStudioApi';
   displayName = DISPLAY_NAME;
   documentationUrl = 'https://api.contentstudio.io/guide';
   icon: Icon = 'file:contentstudio.png';

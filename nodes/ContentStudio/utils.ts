@@ -1,3 +1,6 @@
+import type { INode } from 'n8n-workflow';
+import { NodeOperationError } from 'n8n-workflow';
+
 // Normalize base URL by removing trailing slash and optional /v1 suffix
 export function normalizeBase(u: string): string {
   return (u || '').replace(/\/$/, '').replace(/\/v1$/, '');
@@ -29,7 +32,12 @@ export function parseAccounts(val: unknown): any[] {
 
 // Attempt to parse string into object/array, otherwise return trimmed string
 // Coerce an n8n "json" field value (object or JSON string) into a plain object.
-export function parseJsonObject(val: unknown, fieldLabel: string = 'Permissions'): Record<string, any> {
+// Takes the node so an invalid value surfaces as a NodeOperationError in the UI.
+export function parseJsonObject(
+  node: INode,
+  val: unknown,
+  fieldLabel: string = 'Permissions',
+): Record<string, any> {
   if (val == null) return {};
   if (typeof val === 'object') return val as Record<string, any>;
   if (typeof val === 'string') {
@@ -39,14 +47,14 @@ export function parseJsonObject(val: unknown, fieldLabel: string = 'Permissions'
       const parsed = JSON.parse(t);
       return typeof parsed === 'object' && parsed !== null ? parsed : {};
     } catch {
-      throw new Error(`${fieldLabel} must be a valid JSON object`);
+      throw new NodeOperationError(node, `${fieldLabel} must be a valid JSON object`);
     }
   }
   return {};
 }
 
 // Coerce an n8n "json" field value (array or JSON string) into a plain array.
-export function parseJsonArray(val: unknown, fieldLabel: string): any[] {
+export function parseJsonArray(node: INode, val: unknown, fieldLabel: string): any[] {
   if (val == null) return [];
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
@@ -56,10 +64,10 @@ export function parseJsonArray(val: unknown, fieldLabel: string): any[] {
       const parsed = JSON.parse(t);
       if (Array.isArray(parsed)) return parsed;
     } catch {
-      throw new Error(`${fieldLabel} must be a valid JSON array`);
+      throw new NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
     }
   }
-  throw new Error(`${fieldLabel} must be a valid JSON array`);
+  throw new NodeOperationError(node, `${fieldLabel} must be a valid JSON array`);
 }
 
 export function parseMaybeObject(val: string): any {

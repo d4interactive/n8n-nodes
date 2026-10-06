@@ -8,7 +8,7 @@ This is a custom n8n node for integrating with the ContentStudio API. The node s
 ### File Structure
 ```
 credentials/
-\- ContentStudio.credentials.ts
+\- ContentStudioApi.credentials.ts
 nodes/ContentStudio/
 \- ContentStudio.node.ts     # Main node class and configuration
 \- loadOptions.ts            # Dynamic dropdown data loaders
@@ -29,7 +29,7 @@ The codebase follows a modular approach for better maintainability:
 - **Name**: contentStudio
 - **Group**: transform
 - **Version**: [4, 5]
-- **Credentials**: contentStudio (required)
+- **Credentials**: contentStudioApi (required)
 
 ### Resources and Operations
 

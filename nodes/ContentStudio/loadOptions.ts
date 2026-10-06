@@ -1,8 +1,9 @@
-import type { IHttpRequestOptions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import type { IHttpRequestOptions, ILoadOptionsFunctions, INodePropertyOptions, JsonObject } from 'n8n-workflow';
+import { NodeApiError } from 'n8n-workflow';
 import { normalizeBase, SCHEDULING_PLATFORMS } from './utils';
-import { BASE_URL } from '../../credentials/ContentStudio.credentials';
+import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
-const CREDENTIALS_TYPE = 'contentStudio';
+const CREDENTIALS_TYPE = 'contentStudioApi';
 
 function safeStringify(value: unknown): string {
   try {
@@ -27,6 +28,24 @@ function extractHttpErrorDetails(error: any): { statusCode: string | number; api
   const body = error?.response?.body ?? error?.response?.data ?? error?.cause?.response?.data;
   const apiMessage = extractApiErrorMessage(body) || error?.message || String(error);
   return { statusCode, apiMessage };
+}
+
+// Wrap a failed load-options request so the workflow UI can surface it properly.
+// `withAccessHint` adds the workspace-permissions hint used by the account pickers.
+function loadOptionsError(
+  ctx: ILoadOptionsFunctions,
+  error: unknown,
+  label: string,
+  withAccessHint = false,
+): NodeApiError {
+  const { statusCode, apiMessage } = extractHttpErrorDetails(error);
+  const hint = withAccessHint && statusCode === 403
+    ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
+    : '';
+  return new NodeApiError(ctx.getNode(), error as JsonObject, {
+    message: `Failed to load ${label}`,
+    description: `(${statusCode}) ${apiMessage}${hint}`,
+  });
 }
 
 async function apiRequest(
@@ -120,8 +139,7 @@ export async function getCarouselAccounts(this: ILoadOptionsFunctions): Promise<
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Carousel Accounts: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Carousel Accounts');
   }
 }
 
@@ -170,8 +188,7 @@ export async function getFirstCommentAccounts(this: ILoadOptionsFunctions): Prom
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load First Comment Accounts: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'First Comment Accounts');
   }
 }
 
@@ -193,8 +210,7 @@ export async function getWorkspaces(this: ILoadOptionsFunctions): Promise<INodeP
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Workspaces: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Workspaces');
   }
 }
 
@@ -220,8 +236,7 @@ export async function getPosts(this: ILoadOptionsFunctions): Promise<INodeProper
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Posts: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Posts');
   }
 }
 
@@ -241,11 +256,7 @@ export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePro
       .map(formatAccountOption)
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    const hint = statusCode === 403
-      ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
-      : '';
-    throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+    throw loadOptionsError(this, error, `Accounts for workspace ${workspaceId}`, true);
   }
 }
 
@@ -276,11 +287,7 @@ export async function getSchedulingAccounts(this: ILoadOptionsFunctions): Promis
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    const hint = statusCode === 403
-      ? ' Forbidden: this API key user likely does not have access to Social Accounts in this workspace. Try a different workspaceId or adjust workspace/team permissions.'
-      : '';
-    throw new Error(`Failed to load Accounts for workspace ${workspaceId}: (${statusCode}) ${apiMessage}${hint}`);
+    throw loadOptionsError(this, error, `Accounts for workspace ${workspaceId}`, true);
   }
 }
 
@@ -304,8 +311,7 @@ export async function getContentCategories(this: ILoadOptionsFunctions): Promise
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Content Categories: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Content Categories');
   }
 }
 
@@ -332,8 +338,7 @@ export async function getFacebookBackgrounds(this: ILoadOptionsFunctions): Promi
     }
     return out;
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Facebook Text Backgrounds: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Facebook Text Backgrounds');
   }
 }
 
@@ -358,8 +363,7 @@ export async function getApprovalWorkflows(this: ILoadOptionsFunctions): Promise
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Approval Workflows: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Approval Workflows');
   }
 }
 
@@ -385,7 +389,6 @@ export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INode
       })
       .filter((o): o is INodePropertyOptions => !!o);
   } catch (error) {
-    const { statusCode, apiMessage } = extractHttpErrorDetails(error);
-    throw new Error(`Failed to load Team Members: (${statusCode}) ${apiMessage}`);
+    throw loadOptionsError(this, error, 'Team Members');
   }
 }

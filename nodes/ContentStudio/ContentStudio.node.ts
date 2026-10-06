@@ -1,10 +1,10 @@
-import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties, INodePropertyOptions } from 'n8n-workflow';
-import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
+import type { IExecuteFunctions, IHttpRequestOptions, INodeExecutionData, INodeType, INodeTypeDescription, INodeProperties, INodePropertyOptions, JsonObject } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { getWorkspaces, getPosts, getAccounts, getFirstCommentAccounts, getCarouselAccounts, getContentCategories, getTeamMembers, getFacebookBackgrounds, getApprovalWorkflows, getSchedulingAccounts } from './loadOptions';
 import { normalizeBase, parseAccounts, parseMediaImages, parseMediaVideo, parseCommaSeparated, parseJsonObject, parseJsonArray, parseSchedulingEntityRefs, flattenOptimalTimes, SCHEDULING_PLATFORMS } from './utils';
-import { BASE_URL } from '../../credentials/ContentStudio.credentials';
+import { BASE_URL } from '../../credentials/ContentStudioApi.credentials';
 
-const CREDENTIALS_TYPE = 'contentStudio';
+const CREDENTIALS_TYPE = 'contentStudioApi';
 
 // Color tokens shared by labels, campaigns and content categories. The backend
 // stores the token; the hex is shown for reference only.
@@ -224,7 +224,8 @@ export class ContentStudio implements INodeType {
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
     inputs: [NodeConnectionTypes.Main],
     outputs: [NodeConnectionTypes.Main],
-    credentials: [{ name: 'contentStudio', required: true }],
+    credentials: [{ name: 'contentStudioApi', required: true }],
+    usableAsTool: true,
     properties: [
       // Resource selector
       {
@@ -2942,7 +2943,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'aiImage' && operation === 'generate') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const prompt = (this.getNodeParameter('aiImagePrompt', i) as string) || '';
-        if (!prompt) throw new Error('Prompt is required');
+        if (!prompt) throw new NodeOperationError(this.getNode(), 'Prompt is required', { itemIndex: i });
         const imageUrl = (this.getNodeParameter('aiImageImageUrl', i) as string) || '';
         const model = (this.getNodeParameter('aiImageModel', i) as string) || '';
         const useBrand = this.getNodeParameter('aiImageUseBrand', i) as boolean;
@@ -2968,10 +2969,10 @@ export class ContentStudio implements INodeType {
 
         if (toolKey === 'image-to-image') {
           const prompt = (this.getNodeParameter('aiImageToolPrompt', i) as string) || '';
-          if (!prompt) throw new Error('Prompt is required for this tool');
+          if (!prompt) throw new NodeOperationError(this.getNode(), 'Prompt is required for this tool', { itemIndex: i });
           const attachmentsRaw = (this.getNodeParameter('aiImageToolAttachments', i) as string) || '';
           const attachments = parseCommaSeparated(attachmentsRaw);
-          if (attachments.length === 0) throw new Error('At least one attachment URL is required for this tool');
+          if (attachments.length === 0) throw new NodeOperationError(this.getNode(), 'At least one attachment URL is required for this tool', { itemIndex: i });
           body.prompt = prompt;
           body.attachments = attachments;
           const model = (this.getNodeParameter('aiImageToolModel', i) as string) || '';
@@ -2982,7 +2983,7 @@ export class ContentStudio implements INodeType {
 
         if (toolKey === 'remove-background' || toolKey === 'upscale' || toolKey === 'headshot') {
           const imageUrl = (this.getNodeParameter('aiImageToolImageUrl', i) as string) || '';
-          if (!imageUrl) throw new Error('Image URL is required for this tool');
+          if (!imageUrl) throw new NodeOperationError(this.getNode(), 'Image URL is required for this tool', { itemIndex: i });
           body.image_url = imageUrl;
         }
 
@@ -2998,25 +2999,25 @@ export class ContentStudio implements INodeType {
 
         if (toolKey === 'face-swap') {
           const targetImageUrl = (this.getNodeParameter('aiImageToolTargetImageUrl', i) as string) || '';
-          if (!targetImageUrl) throw new Error('Target Image URL is required for this tool');
+          if (!targetImageUrl) throw new NodeOperationError(this.getNode(), 'Target Image URL is required for this tool', { itemIndex: i });
           const faceImageUrl = (this.getNodeParameter('aiImageToolFaceImageUrl', i) as string) || '';
-          if (!faceImageUrl) throw new Error('Face Image URL is required for this tool');
+          if (!faceImageUrl) throw new NodeOperationError(this.getNode(), 'Face Image URL is required for this tool', { itemIndex: i });
           body.target_image_url = targetImageUrl;
           body.face_image_url = faceImageUrl;
         }
 
         if (toolKey === 'outfit-swap') {
           const targetImageUrl = (this.getNodeParameter('aiImageToolTargetImageUrl', i) as string) || '';
-          if (!targetImageUrl) throw new Error('Target Image URL is required for this tool');
+          if (!targetImageUrl) throw new NodeOperationError(this.getNode(), 'Target Image URL is required for this tool', { itemIndex: i });
           const outfitImageUrl = (this.getNodeParameter('aiImageToolOutfitImageUrl', i) as string) || '';
-          if (!outfitImageUrl) throw new Error('Outfit Image URL is required for this tool');
+          if (!outfitImageUrl) throw new NodeOperationError(this.getNode(), 'Outfit Image URL is required for this tool', { itemIndex: i });
           body.target_image_url = targetImageUrl;
           body.outfit_image_url = outfitImageUrl;
         }
 
         if (toolKey === 'product-image') {
           const productImageUrl = (this.getNodeParameter('aiImageToolProductImageUrl', i) as string) || '';
-          if (!productImageUrl) throw new Error('Product Image URL is required for this tool');
+          if (!productImageUrl) throw new NodeOperationError(this.getNode(), 'Product Image URL is required for this tool', { itemIndex: i });
           body.product_image_url = productImageUrl;
           const referenceImageUrl = (this.getNodeParameter('aiImageToolReferenceImageUrl', i) as string) || '';
           if (referenceImageUrl) body.reference_image_url = referenceImageUrl;
@@ -3066,7 +3067,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'aiVideo' && operation === 'generate') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const prompt = (this.getNodeParameter('aiVideoPrompt', i) as string) || '';
-        if (!prompt) throw new Error('Prompt is required');
+        if (!prompt) throw new NodeOperationError(this.getNode(), 'Prompt is required', { itemIndex: i });
         const imageUrl = (this.getNodeParameter('aiVideoImageUrl', i) as string) || '';
         const referenceImageUrlsRaw = (this.getNodeParameter('aiVideoReferenceImageUrls', i) as string) || '';
         const model = (this.getNodeParameter('aiVideoModel', i) as string) || '';
@@ -3081,7 +3082,7 @@ export class ContentStudio implements INodeType {
         const body: Record<string, any> = { prompt };
         const referenceImageUrls = parseCommaSeparated(referenceImageUrlsRaw);
         if (imageUrl && referenceImageUrls.length > 0) {
-          throw new Error('Image URL and Reference Image URLs are mutually exclusive');
+          throw new NodeOperationError(this.getNode(), 'Image URL and Reference Image URLs are mutually exclusive', { itemIndex: i });
         }
         if (imageUrl) body.image_url = imageUrl;
         if (referenceImageUrls.length > 0) body.reference_image_urls = referenceImageUrls;
@@ -3105,17 +3106,17 @@ export class ContentStudio implements INodeType {
         const body: Record<string, any> = {};
         if (toolKey === 'motion-control' || toolKey === 'talking-avatar') {
           const imageUrl = (this.getNodeParameter('aiVideoToolImageUrl', i) as string) || '';
-          if (!imageUrl) throw new Error('Image URL is required for this tool');
+          if (!imageUrl) throw new NodeOperationError(this.getNode(), 'Image URL is required for this tool', { itemIndex: i });
           body.image_url = imageUrl;
         }
         if (toolKey === 'motion-control' || toolKey === 'lip-sync') {
           const videoUrl = (this.getNodeParameter('aiVideoToolVideoUrl', i) as string) || '';
-          if (!videoUrl) throw new Error('Video URL is required for this tool');
+          if (!videoUrl) throw new NodeOperationError(this.getNode(), 'Video URL is required for this tool', { itemIndex: i });
           body.video_url = videoUrl;
         }
         if (toolKey === 'lip-sync' || toolKey === 'talking-avatar') {
           const audioUrl = (this.getNodeParameter('aiVideoToolAudioUrl', i) as string) || '';
-          if (!audioUrl) throw new Error('Audio URL is required for this tool');
+          if (!audioUrl) throw new NodeOperationError(this.getNode(), 'Audio URL is required for this tool', { itemIndex: i });
           body.audio_url = audioUrl;
         }
         options.method = 'POST';
@@ -3138,7 +3139,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'aiVideo' && operation === 'get') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const jobId = (this.getNodeParameter('aiVideoJobId', i) as string) || '';
-        if (!jobId) throw new Error('Job ID is required');
+        if (!jobId) throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/jobs/${jobId}`;
       }
@@ -3146,7 +3147,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'aiVideo' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const jobId = (this.getNodeParameter('aiVideoJobId', i) as string) || '';
-        if (!jobId) throw new Error('Job ID is required');
+        if (!jobId) throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/ai/jobs/${jobId}`;
       }
@@ -3173,7 +3174,7 @@ export class ContentStudio implements INodeType {
         const logo = this.getNodeParameter('wsLogo', i) as string;
         const timezone = this.getNodeParameter('wsTimezone', i) as string;
         if (!name || !logo || !timezone) {
-          throw new Error('Name, Logo URL and Timezone are required to create a workspace');
+          throw new NodeOperationError(this.getNode(), 'Name, Logo URL and Timezone are required to create a workspace', { itemIndex: i });
         }
         const body: Record<string, any> = { name, logo, timezone };
         const superAdminId = this.getNodeParameter('wsSuperAdminId', i) as string;
@@ -3209,7 +3210,7 @@ export class ContentStudio implements INodeType {
           body.first_day = { day: firstDay, key: WEEK_DAYS.indexOf(firstDay) };
         }
         if (Object.keys(body).length === 0) {
-          throw new Error('Provide at least one field to update');
+          throw new NodeOperationError(this.getNode(), 'Provide at least one field to update', { itemIndex: i });
         }
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}`;
@@ -3236,7 +3237,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'socialAccount' && operation === 'remove') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const accountId = this.getNodeParameter('accountId', i) as string;
-        if (!accountId) throw new Error('Account is required');
+        if (!accountId) throw new NodeOperationError(this.getNode(), 'Account is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/accounts/${accountId}`;
       }
@@ -3266,8 +3267,8 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const name = (this.getNodeParameter('labelName', i) as string).trim();
         const color = this.getNodeParameter('labelColor', i) as string;
-        if (!name) throw new Error('Name is required');
-        if (!color) throw new Error('Color is required');
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        if (!color) throw new NodeOperationError(this.getNode(), 'Color is required', { itemIndex: i });
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/labels`;
         options.body = { name, color };
@@ -3276,7 +3277,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'label' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const labelId = (this.getNodeParameter('labelId', i) as string).trim();
-        if (!labelId) throw new Error('Label ID is required');
+        if (!labelId) throw new NodeOperationError(this.getNode(), 'Label ID is required', { itemIndex: i });
         const name = (this.getNodeParameter('labelName', i) as string).trim();
         const color = (this.getNodeParameter('labelColor', i) as string).trim();
         const body: Record<string, any> = {};
@@ -3290,7 +3291,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'label' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const labelId = (this.getNodeParameter('labelId', i) as string).trim();
-        if (!labelId) throw new Error('Label ID is required');
+        if (!labelId) throw new NodeOperationError(this.getNode(), 'Label ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/labels/${labelId}`;
       }
@@ -3311,8 +3312,8 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const name = (this.getNodeParameter('campaignName', i) as string).trim();
         const color = this.getNodeParameter('campaignColor', i) as string;
-        if (!name) throw new Error('Name is required');
-        if (!color) throw new Error('Color is required');
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        if (!color) throw new NodeOperationError(this.getNode(), 'Color is required', { itemIndex: i });
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns`;
         options.body = { name, color };
@@ -3321,7 +3322,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'campaign' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const campaignId = (this.getNodeParameter('campaignId', i) as string).trim();
-        if (!campaignId) throw new Error('Campaign ID is required');
+        if (!campaignId) throw new NodeOperationError(this.getNode(), 'Campaign ID is required', { itemIndex: i });
         const name = (this.getNodeParameter('campaignName', i) as string).trim();
         const color = (this.getNodeParameter('campaignColor', i) as string).trim();
         const body: Record<string, any> = {};
@@ -3335,7 +3336,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'campaign' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const campaignId = (this.getNodeParameter('campaignId', i) as string).trim();
-        if (!campaignId) throw new Error('Campaign ID is required');
+        if (!campaignId) throw new NodeOperationError(this.getNode(), 'Campaign ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/campaigns/${campaignId}`;
       }
@@ -3360,7 +3361,7 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
         const folderId = (this.getNodeParameter('mediaFolderId', i) as string) || '';
-        if (!mediaUrl) throw new Error('Media URL is required');
+        if (!mediaUrl) throw new NodeOperationError(this.getNode(), 'Media URL is required', { itemIndex: i });
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/media`;
         options.body = { url: mediaUrl } as any;
@@ -3384,8 +3385,8 @@ export class ContentStudio implements INodeType {
         const role = this.getNodeParameter('teamRole', i) as string;
         const membership = this.getNodeParameter('teamMembership', i) as string;
         const email = (this.getNodeParameter('teamEmail', i) as string).trim();
-        if (!email) throw new Error('Email is required');
-        const permissions = parseJsonObject(this.getNodeParameter('teamPermissions', i));
+        if (!email) throw new NodeOperationError(this.getNode(), 'Email is required', { itemIndex: i });
+        const permissions = parseJsonObject(this.getNode(), this.getNodeParameter('teamPermissions', i));
         const body: Record<string, any> = { role, membership, email };
         if (permissions && Object.keys(permissions).length) body.permissions = permissions;
         options.method = 'POST';
@@ -3396,10 +3397,10 @@ export class ContentStudio implements INodeType {
       if (resource === 'teamMember' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const memberId = this.getNodeParameter('teamMemberId', i) as string;
-        if (!memberId) throw new Error('Member ID is required');
+        if (!memberId) throw new NodeOperationError(this.getNode(), 'Member ID is required', { itemIndex: i });
         const role = this.getNodeParameter('teamRole', i) as string;
         const membership = this.getNodeParameter('teamMembership', i) as string;
-        const permissions = parseJsonObject(this.getNodeParameter('teamPermissions', i));
+        const permissions = parseJsonObject(this.getNode(), this.getNodeParameter('teamPermissions', i));
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/team-members/${memberId}`;
         options.body = { role, membership, permissions: permissions || {} };
@@ -3408,7 +3409,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'teamMember' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const memberId = this.getNodeParameter('teamMemberId', i) as string;
-        if (!memberId) throw new Error('Member ID is required');
+        if (!memberId) throw new NodeOperationError(this.getNode(), 'Member ID is required', { itemIndex: i });
         const confirmed = this.getNodeParameter('teamConfirmed', i) as boolean;
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/team-members/${memberId}`;
@@ -3420,7 +3421,7 @@ export class ContentStudio implements INodeType {
         const postId = this.getNodeParameter('commentPostId', i) as string;
         const page = this.getNodeParameter('page', i) as number;
         const perPage = this.getNodeParameter('perPage', i) as number;
-        if (!postId) throw new Error('Post ID is required');
+        if (!postId) throw new NodeOperationError(this.getNode(), 'Post ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         options.qs = { page, per_page: perPage };
@@ -3432,8 +3433,8 @@ export class ContentStudio implements INodeType {
         const commentText = this.getNodeParameter('commentText', i) as string;
         const isNote = this.getNodeParameter('commentIsNote', i, false) as boolean;
         const mentionedUsersRaw = (this.getNodeParameter('commentMentionedUsers', i) as string) || '';
-        if (!postId) throw new Error('Post ID is required');
-        if (!commentText) throw new Error('Comment text is required');
+        if (!postId) throw new NodeOperationError(this.getNode(), 'Post ID is required', { itemIndex: i });
+        if (!commentText) throw new NodeOperationError(this.getNode(), 'Comment text is required', { itemIndex: i });
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}/comments`;
         const body: any = { comment: commentText };
@@ -3532,12 +3533,12 @@ export class ContentStudio implements INodeType {
           firstCommentAccountIds = parseAccounts(firstCommentAccountsParam);
 
           if (!firstCommentMessage.trim()) {
-            throw new Error('First Comment Message is required when Enable First Comment is true');
+            throw new NodeOperationError(this.getNode(), 'First Comment Message is required when Enable First Comment is true', { itemIndex: i });
           }
 
           // First comment accounts required only when content_category is NOT used
           if (firstCommentAccountIds.length === 0 && !contentCategoryId) {
-            throw new Error('First Comment Accounts is required when Enable First Comment is true and no Content Category is selected');
+            throw new NodeOperationError(this.getNode(), 'First Comment Accounts is required when Enable First Comment is true and no Content Category is selected', { itemIndex: i });
           }
         }
 
@@ -3553,7 +3554,7 @@ export class ContentStudio implements INodeType {
 
         // Validate: either accounts or content_category_id must be provided
         if (accounts.length === 0 && !contentCategoryId) {
-          throw new Error('Either Accounts or Content Category must be selected');
+          throw new NodeOperationError(this.getNode(), 'Either Accounts or Content Category must be selected', { itemIndex: i });
         }
 
         // Content validation - ensure at least one content type is present
@@ -3562,12 +3563,12 @@ export class ContentStudio implements INodeType {
         const hasVideo = mediaVideo && mediaVideo.trim().length > 0;
 
         if (!hasText && !hasImages && !hasVideo) {
-          throw new Error('At least one of the following must be provided: Content Text, Media Images, or Media Video');
+          throw new NodeOperationError(this.getNode(), 'At least one of the following must be provided: Content Text, Media Images, or Media Video', { itemIndex: i });
         }
 
         // Validate scheduled date format
         if (scheduledAt && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(scheduledAt)) {
-          throw new Error('Scheduled At must be in format: YYYY-MM-DD HH:MM:SS (e.g., 2025-10-11 11:15:00)');
+          throw new NodeOperationError(this.getNode(), 'Scheduled At must be in format: YYYY-MM-DD HH:MM:SS (e.g., 2025-10-11 11:15:00)', { itemIndex: i });
         }
 
         // Validate first comment accounts overlap with main accounts (only if accounts provided)
@@ -3576,7 +3577,7 @@ export class ContentStudio implements INodeType {
           const validCommentAccounts = firstCommentAccountIds.filter(id => mainAccountSet.has(id));
 
           if (validCommentAccounts.length === 0) {
-            throw new Error('First Comment Accounts must include at least one account from the selected main Accounts');
+            throw new NodeOperationError(this.getNode(), 'First Comment Accounts must include at least one account from the selected main Accounts', { itemIndex: i });
           }
 
           // Use only valid overlapping accounts
@@ -3587,7 +3588,7 @@ export class ContentStudio implements INodeType {
 
         if (operation === 'update') {
           const updatePostId = (this.getNodeParameter('updatePostId', i) as string).trim();
-          if (!updatePostId) throw new Error('Post ID is required to update a post');
+          if (!updatePostId) throw new NodeOperationError(this.getNode(), 'Post ID is required to update a post', { itemIndex: i });
           options.method = 'PUT';
           options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${updatePostId}`;
         } else {
@@ -3622,13 +3623,13 @@ export class ContentStudio implements INodeType {
           const repeatTimes = Number(this.getNodeParameter('repeatTimes', i, 2));
           const repeatGap = Number(this.getNodeParameter('repeatGap', i, 1));
           if (!Number.isInteger(repeatTimes) || repeatTimes < 1 || repeatTimes > 30) {
-            throw new Error('Repeat Times must be a whole number between 1 and 30');
+            throw new NodeOperationError(this.getNode(), 'Repeat Times must be a whole number between 1 and 30', { itemIndex: i });
           }
           if (!Number.isInteger(repeatGap) || repeatGap < 1 || repeatGap > 99) {
-            throw new Error('Repeat Interval must be a whole number between 1 and 99');
+            throw new NodeOperationError(this.getNode(), 'Repeat Interval must be a whole number between 1 and 99', { itemIndex: i });
           }
           if (repeatType === 'Day' && repeatGap < 3) {
-            throw new Error('A Day repeat requires an interval of at least 3 days');
+            throw new NodeOperationError(this.getNode(), 'A Day repeat requires an interval of at least 3 days', { itemIndex: i });
           }
           (options.body as any).scheduling.repeat = {
             enabled: true,
@@ -3676,7 +3677,7 @@ export class ContentStudio implements INodeType {
             const image = String(c?.image ?? '').trim();
             const link = String(c?.link ?? '').trim();
             if (!image || !link) {
-              throw new Error(`Carousel card ${idx + 1} requires both Image URL and Destination URL`);
+              throw new NodeOperationError(this.getNode(), `Carousel card ${idx + 1} requires both Image URL and Destination URL`, { itemIndex: i });
             }
             return {
               image,
@@ -3687,7 +3688,7 @@ export class ContentStudio implements INodeType {
           });
 
           if (cards.length < 2 || cards.length > 10) {
-            throw new Error(`Facebook carousel requires between 2 and 10 cards (got ${cards.length})`);
+            throw new NodeOperationError(this.getNode(), `Facebook carousel requires between 2 and 10 cards (got ${cards.length})`, { itemIndex: i });
           }
 
           const carouselAccountsRaw = this.getNodeParameter('carouselAccounts', i, []) as string | string[];
@@ -3714,7 +3715,7 @@ export class ContentStudio implements INodeType {
           const facebookCollaborators = parseCommaSeparated(this.getNodeParameter('facebookCollaborators', i, '') as unknown);
           if (facebookCollaborators.length > 0) {
             if (facebookCollaborators.length > 10) {
-              throw new Error(`Facebook reel collaborators supports at most 10 (got ${facebookCollaborators.length})`);
+              throw new NodeOperationError(this.getNode(), `Facebook reel collaborators supports at most 10 (got ${facebookCollaborators.length})`, { itemIndex: i });
             }
             (options.body as any).facebook_options = (options.body as any).facebook_options || {};
             (options.body as any).facebook_options.collaborators = facebookCollaborators;
@@ -3728,16 +3729,16 @@ export class ContentStudio implements INodeType {
           const instagramTrialReelEnabled = this.getNodeParameter('instagramTrialReelEnabled', i, false) as boolean;
 
           if (instagramCollaborators.length > 0 && instagramTrialReelEnabled) {
-            throw new Error('Instagram Trial Reel is mutually exclusive with Instagram Collaborators on the same request');
+            throw new NodeOperationError(this.getNode(), 'Instagram Trial Reel is mutually exclusive with Instagram Collaborators on the same request', { itemIndex: i });
           }
 
           if (instagramTrialReelEnabled && postType.includes('story')) {
-            throw new Error('Instagram Trial Reel is mutually exclusive with sharing to Story on the same request');
+            throw new NodeOperationError(this.getNode(), 'Instagram Trial Reel is mutually exclusive with sharing to Story on the same request', { itemIndex: i });
           }
 
           if (instagramCollaborators.length > 0) {
             if (instagramCollaborators.length > 3) {
-              throw new Error(`Instagram collaborators supports at most 3 (got ${instagramCollaborators.length})`);
+              throw new NodeOperationError(this.getNode(), `Instagram collaborators supports at most 3 (got ${instagramCollaborators.length})`, { itemIndex: i });
             }
             (options.body as any).instagram_options = { collaborators: instagramCollaborators };
           }
@@ -3753,7 +3754,7 @@ export class ContentStudio implements INodeType {
         }
 
         // Per-platform content overrides (platform_overrides.<platform>.content.{text,post_type,media})
-        const platformOverrides = parseJsonObject(this.getNodeParameter('platformOverrides', i, '{}') as unknown, 'Platform Overrides');
+        const platformOverrides = parseJsonObject(this.getNode(), this.getNodeParameter('platformOverrides', i, '{}') as unknown, 'Platform Overrides');
         if (Object.keys(platformOverrides).length > 0) {
           (options.body as any).platform_overrides = platformOverrides;
         }
@@ -3765,7 +3766,7 @@ export class ContentStudio implements INodeType {
           const linkedinTitle = ((this.getNodeParameter('linkedinTitle', i, '') as string) || '').trim();
           if (linkedinTitle) {
             if (linkedinTitle.length > 255) {
-              throw new Error('LinkedIn Title supports at most 255 characters');
+              throw new NodeOperationError(this.getNode(), 'LinkedIn Title supports at most 255 characters', { itemIndex: i });
             }
             linkedinOptions.title = linkedinTitle;
           }
@@ -3774,17 +3775,17 @@ export class ContentStudio implements INodeType {
           if (linkedinEnablePoll) {
             const pollQuestion = ((this.getNodeParameter('linkedinPollQuestion', i, '') as string) || '').trim();
             if (!pollQuestion) {
-              throw new Error('Poll Question is required when LinkedIn Poll is enabled');
+              throw new NodeOperationError(this.getNode(), 'Poll Question is required when LinkedIn Poll is enabled', { itemIndex: i });
             }
             if (pollQuestion.length > 140) {
-              throw new Error('Poll Question supports at most 140 characters');
+              throw new NodeOperationError(this.getNode(), 'Poll Question supports at most 140 characters', { itemIndex: i });
             }
             const pollOptions = parseCommaSeparated(this.getNodeParameter('linkedinPollOptions', i, '') as unknown);
             if (pollOptions.length < 2 || pollOptions.length > 4) {
-              throw new Error(`LinkedIn poll requires between 2 and 4 options (got ${pollOptions.length})`);
+              throw new NodeOperationError(this.getNode(), `LinkedIn poll requires between 2 and 4 options (got ${pollOptions.length})`, { itemIndex: i });
             }
             if (pollOptions.some((opt) => opt.length > 30)) {
-              throw new Error('Each LinkedIn poll option supports at most 30 characters');
+              throw new NodeOperationError(this.getNode(), 'Each LinkedIn poll option supports at most 30 characters', { itemIndex: i });
             }
             const pollDuration = (this.getNodeParameter('linkedinPollDuration', i, 'ONE_DAY') as string) || 'ONE_DAY';
             linkedinOptions.poll = {
@@ -3818,7 +3819,7 @@ export class ContentStudio implements INodeType {
           const approversParam = this.getNodeParameter('approvers', i, '') as unknown;
           const approvers = parseCommaSeparated(approversParam);
           if (approvers.length === 0) {
-            throw new Error('At least one Approver ID is required when Send for Approval is enabled');
+            throw new NodeOperationError(this.getNode(), 'At least one Approver ID is required when Send for Approval is enabled', { itemIndex: i });
           }
           const approveOption = (this.getNodeParameter('approveOption', i) as string) || 'anyone';
           const approvalNotes = (this.getNodeParameter('approvalNotes', i) as string) || '';
@@ -3836,7 +3837,7 @@ export class ContentStudio implements INodeType {
         const useApprovalWorkflow = this.getNodeParameter('useApprovalWorkflow', i, false) as boolean;
         if (useApprovalWorkflow) {
           if (sendForApproval) {
-            throw new Error('Use either "Send for Approval" (legacy) or "Use Approval Workflow" — they are mutually exclusive');
+            throw new NodeOperationError(this.getNode(), 'Use either "Send for Approval" (legacy) or "Use Approval Workflow" — they are mutually exclusive', { itemIndex: i });
           }
           const workflowId = ((this.getNodeParameter('approvalWorkflowId', i, '') as string) || '').trim();
           const workflowAction = operation === 'update'
@@ -3845,10 +3846,10 @@ export class ContentStudio implements INodeType {
           const workflowNotes = ((this.getNodeParameter('approvalWorkflowNotes', i, '') as string) || '').trim();
 
           if (workflowId && workflowAction) {
-            throw new Error('Provide exactly one of Approval Workflow (attach) or Workflow Action — not both');
+            throw new NodeOperationError(this.getNode(), 'Provide exactly one of Approval Workflow (attach) or Workflow Action — not both', { itemIndex: i });
           }
           if (!workflowId && !workflowAction) {
-            throw new Error('Approval Workflow requires either a workflow to attach or a Workflow Action');
+            throw new NodeOperationError(this.getNode(), 'Approval Workflow requires either a workflow to attach or a Workflow Action', { itemIndex: i });
           }
 
           const approvalWorkflow: Record<string, any> = workflowId
@@ -3878,7 +3879,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'post' && operation === 'get') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const postId = ((this.getNodeParameter('postId', i) as string) || '').trim();
-        if (!postId) throw new Error('Post ID is required');
+        if (!postId) throw new NodeOperationError(this.getNode(), 'Post ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${postId}`;
       }
@@ -3896,8 +3897,8 @@ export class ContentStudio implements INodeType {
         const approvalAction = this.getNodeParameter('approvalAction', i) as string;
         const comment = (this.getNodeParameter('approvalComment', i) as string) || '';
 
-        if (!planId) throw new Error('Post/Plan ID is required');
-        if (!approvalAction) throw new Error('Action is required (approve or reject)');
+        if (!planId) throw new NodeOperationError(this.getNode(), 'Post/Plan ID is required', { itemIndex: i });
+        if (!approvalAction) throw new NodeOperationError(this.getNode(), 'Action is required (approve or reject)', { itemIndex: i });
 
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/posts/${planId}/approval`;
@@ -3938,14 +3939,10 @@ export class ContentStudio implements INodeType {
           for (const entity of unresolved) {
             const platform = platformById.get(entity.id);
             if (!platform) {
-              throw new Error(
-                `Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`,
-              );
+              throw new NodeOperationError(this.getNode(), `Account "${entity.id}" is not connected to workspace ${workspaceId}. Select accounts from the dropdown, or pass account IDs returned by Social Account → List.`, { itemIndex: i });
             }
             if (!SCHEDULING_PLATFORMS.includes(platform)) {
-              throw new Error(
-                `Account "${entity.id}" is a ${platform} connection, which the best-times analysis does not support. Supported platforms: ${SCHEDULING_PLATFORMS.join(', ')}.`,
-              );
+              throw new NodeOperationError(this.getNode(), `Account "${entity.id}" is a ${platform} connection, which the best-times analysis does not support. Supported platforms: ${SCHEDULING_PLATFORMS.join(', ')}.`, { itemIndex: i });
             }
             entity.type = platform;
           }
@@ -3968,7 +3965,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategory' && operation === 'get') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}`;
       }
@@ -3977,8 +3974,8 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const name = ((this.getNodeParameter('categoryName', i) as string) || '').trim();
         const color = (this.getNodeParameter('categoryColor', i) as string) || '';
-        if (!name) throw new Error('Name is required');
-        if (!color) throw new Error('Color is required');
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        if (!color) throw new NodeOperationError(this.getNode(), 'Color is required', { itemIndex: i });
         const allowedMemberIds = parseCommaSeparated(this.getNodeParameter('categoryAllowedMembers', i, []) as unknown);
         const categoryAccounts = parseCommaSeparated(this.getNodeParameter('categoryAccounts', i, []) as unknown);
         options.method = 'POST';
@@ -3994,7 +3991,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategory' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         const name = ((this.getNodeParameter('categoryName', i, '') as string) || '').trim();
         const color = ((this.getNodeParameter('categoryColor', i, '') as string) || '').trim();
         const allowedMemberIds = parseCommaSeparated(this.getNodeParameter('categoryAllowedMembers', i, []) as unknown);
@@ -4012,7 +4009,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategory' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}`;
       }
@@ -4020,7 +4017,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategory' && operation === 'shuffle') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         // A category with nothing upcoming is still a success: shuffled_posts_count is 0.
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/shuffle`;
@@ -4029,7 +4026,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategorySlot' && operation === 'list') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots`;
       }
@@ -4037,16 +4034,16 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategorySlot' && operation === 'create') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         const day = (this.getNodeParameter('slotDay', i) as string) || '';
         const hour = Number(this.getNodeParameter('slotHour', i));
         const minute = Number(this.getNodeParameter('slotMinute', i));
         const period = (this.getNodeParameter('slotPeriod', i) as string) || '';
         if (!Number.isInteger(hour) || hour < 0 || hour > 12) {
-          throw new Error('Hour must be an integer between 0 and 12 (12-hour clock)');
+          throw new NodeOperationError(this.getNode(), 'Hour must be an integer between 0 and 12 (12-hour clock)', { itemIndex: i });
         }
         if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
-          throw new Error('Minute must be an integer between 0 and 59');
+          throw new NodeOperationError(this.getNode(), 'Minute must be an integer between 0 and 59', { itemIndex: i });
         }
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots`;
@@ -4057,8 +4054,8 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
         const slotId = ((this.getNodeParameter('slotId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
-        if (!slotId) throw new Error('Slot ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        if (!slotId) throw new NodeOperationError(this.getNode(), 'Slot ID is required', { itemIndex: i });
         const fields = this.getNodeParameter('slotUpdateFields', i, {}) as Record<string, any>;
         const body: Record<string, any> = {};
         if (typeof fields.day === 'string' && fields.day) body.day = fields.day;
@@ -4066,18 +4063,18 @@ export class ContentStudio implements INodeType {
         if (fields.hour !== undefined && fields.hour !== null && fields.hour !== '') {
           const hour = Number(fields.hour);
           if (!Number.isInteger(hour) || hour < 0 || hour > 12) {
-            throw new Error('Hour must be an integer between 0 and 12 (12-hour clock)');
+            throw new NodeOperationError(this.getNode(), 'Hour must be an integer between 0 and 12 (12-hour clock)', { itemIndex: i });
           }
           body.hour = hour;
         }
         if (fields.minute !== undefined && fields.minute !== null && fields.minute !== '') {
           const minute = Number(fields.minute);
           if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
-            throw new Error('Minute must be an integer between 0 and 59');
+            throw new NodeOperationError(this.getNode(), 'Minute must be an integer between 0 and 59', { itemIndex: i });
           }
           body.minute = minute;
         }
-        if (Object.keys(body).length === 0) throw new Error('Add at least one field to Update Fields');
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots/${slotId}`;
         options.body = body;
@@ -4087,8 +4084,8 @@ export class ContentStudio implements INodeType {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
         const slotId = ((this.getNodeParameter('slotId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
-        if (!slotId) throw new Error('Slot ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
+        if (!slotId) throw new NodeOperationError(this.getNode(), 'Slot ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/content-categories/${categoryId}/slots/${slotId}`;
       }
@@ -4096,7 +4093,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'contentCategorySlot' && operation === 'next') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const categoryId = ((this.getNodeParameter('categoryId', i) as string) || '').trim();
-        if (!categoryId) throw new Error('Content Category ID is required');
+        if (!categoryId) throw new NodeOperationError(this.getNode(), 'Content Category ID is required', { itemIndex: i });
         const slotPostId = ((this.getNodeParameter('slotPostId', i, '') as string) || '').trim();
         // A category with no free slot answers 200 with next_slot: null.
         options.method = 'GET';
@@ -4107,7 +4104,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'get') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
       }
@@ -4115,9 +4112,9 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'create') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const name = ((this.getNodeParameter('workflowName', i) as string) || '').trim();
-        if (!name) throw new Error('Name is required');
-        const levels = parseJsonArray(this.getNodeParameter('workflowLevels', i) as unknown, 'Levels');
-        if (levels.length === 0) throw new Error('Levels must contain at least one approval level');
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
+        const levels = parseJsonArray(this.getNode(), this.getNodeParameter('workflowLevels', i) as unknown, 'Levels');
+        if (levels.length === 0) throw new NodeOperationError(this.getNode(), 'Levels must contain at least one approval level', { itemIndex: i });
         const isDraft = this.getNodeParameter('workflowIsDraft', i, false) as boolean;
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows`;
@@ -4127,20 +4124,20 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         const fields = this.getNodeParameter('workflowUpdateFields', i, {}) as Record<string, any>;
         const body: Record<string, any> = {};
         if (typeof fields.name === 'string' && fields.name.trim()) body.name = fields.name.trim();
         if (fields.levels !== undefined && fields.levels !== null && fields.levels !== '') {
-          const levels = parseJsonArray(fields.levels, 'Levels');
-          if (levels.length === 0) throw new Error('Levels must contain at least one approval level');
+          const levels = parseJsonArray(this.getNode(), fields.levels, 'Levels');
+          if (levels.length === 0) throw new NodeOperationError(this.getNode(), 'Levels must contain at least one approval level', { itemIndex: i });
           body.levels = levels;
         }
         if (typeof fields.is_draft === 'boolean') body.is_draft = fields.is_draft;
         // `confirmed` opts in to cancelling approvals already in flight; the API
         // then answers 202 with a cascade_job_id instead of the updated workflow.
         if (typeof fields.confirmed === 'boolean') body.confirmed = fields.confirmed;
-        if (Object.keys(body).length === 0) throw new Error('Add at least one field to Update Fields');
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
         options.body = body;
@@ -4149,7 +4146,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         const force = this.getNodeParameter('workflowForceDelete', i, false) as boolean;
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}`;
@@ -4160,7 +4157,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'duplicate') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         options.method = 'POST';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/duplicate`;
       }
@@ -4168,7 +4165,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'setDefault') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         // A draft cannot be the default: CANNOT_SET_DRAFT_AS_DEFAULT.
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/set-default`;
@@ -4177,7 +4174,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'removeDefault') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const workflowId = ((this.getNodeParameter('workflowId', i) as string) || '').trim();
-        if (!workflowId) throw new Error('Workflow ID is required');
+        if (!workflowId) throw new NodeOperationError(this.getNode(), 'Workflow ID is required', { itemIndex: i });
         options.method = 'PUT';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/${workflowId}/remove-default`;
       }
@@ -4185,7 +4182,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'approvalWorkflow' && operation === 'getCascadeJob') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const cascadeJobId = ((this.getNodeParameter('cascadeJobId', i) as string) || '').trim();
-        if (!cascadeJobId) throw new Error('Cascade Job ID is required');
+        if (!cascadeJobId) throw new NodeOperationError(this.getNode(), 'Cascade Job ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/approval-workflows/cascade-jobs/${cascadeJobId}`;
       }
@@ -4205,7 +4202,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'get') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
-        if (!shareLinkId) throw new Error('Share Link ID is required');
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}`;
       }
@@ -4213,7 +4210,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'create') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const name = ((this.getNodeParameter('shareLinkName', i) as string) || '').trim();
-        if (!name) throw new Error('Name is required');
+        if (!name) throw new NodeOperationError(this.getNode(), 'Name is required', { itemIndex: i });
         const scope = (this.getNodeParameter('shareLinkScope', i, 'selection') as string) || 'selection';
         const view = (this.getNodeParameter('shareLinkView', i, 'list') as string) || 'list';
         const plans = parseCommaSeparated(this.getNodeParameter('shareLinkPlans', i, '') as unknown);
@@ -4222,32 +4219,32 @@ export class ContentStudio implements INodeType {
         const password = ((this.getNodeParameter('shareLinkPassword', i, '') as string) || '').trim();
         const isSinglePost = this.getNodeParameter('shareLinkIsSinglePost', i, false) as boolean;
         const allowExternalApprovalActions = this.getNodeParameter('shareLinkAllowExternalApprovalActions', i, false) as boolean;
-        const socialSelections = parseJsonObject(this.getNodeParameter('shareLinkSocialSelections', i, '{}') as unknown, 'Social Selections');
+        const socialSelections = parseJsonObject(this.getNode(), this.getNodeParameter('shareLinkSocialSelections', i, '{}') as unknown, 'Social Selections');
         // future/all are calendar-only windows: they need an anchor date, cannot
         // collect external approvals, and still require plans or notes.
         const isWindowScope = scope === 'future' || scope === 'all';
         const calendarDate = ((this.getNodeParameter('shareLinkCalendarDate', i, '') as string) || '').trim();
 
         if (plans.length === 0 && notes.length === 0) {
-          throw new Error('Either Plans or Notes is required');
+          throw new NodeOperationError(this.getNode(), 'Either Plans or Notes is required', { itemIndex: i });
         }
         if (isWindowScope && view !== 'calendar') {
-          throw new Error('Scope "future" and "all" are only available on the Calendar view');
+          throw new NodeOperationError(this.getNode(), 'Scope "future" and "all" are only available on the Calendar view', { itemIndex: i });
         }
         if (isWindowScope && !calendarDate) {
-          throw new Error('Calendar Date is required when Scope is Future or All');
+          throw new NodeOperationError(this.getNode(), 'Calendar Date is required when Scope is Future or All', { itemIndex: i });
         }
         if (isWindowScope && allowExternalApprovalActions) {
-          throw new Error('External approval actions cannot be enabled when Scope is Future or All');
+          throw new NodeOperationError(this.getNode(), 'External approval actions cannot be enabled when Scope is Future or All', { itemIndex: i });
         }
         if (isPasswordProtected && !password) {
-          throw new Error('Password is required when Password Protected is enabled');
+          throw new NodeOperationError(this.getNode(), 'Password is required when Password Protected is enabled', { itemIndex: i });
         }
         if (isSinglePost && isWindowScope) {
-          throw new Error('Single Post links require Scope "selection"');
+          throw new NodeOperationError(this.getNode(), 'Single Post links require Scope "selection"', { itemIndex: i });
         }
         if (isSinglePost && plans.length !== 1) {
-          throw new Error('Single Post links require exactly one plan');
+          throw new NodeOperationError(this.getNode(), 'Single Post links require exactly one plan', { itemIndex: i });
         }
 
         options.method = 'POST';
@@ -4273,7 +4270,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'update') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
-        if (!shareLinkId) throw new Error('Share Link ID is required');
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
         const fields = this.getNodeParameter('shareLinkUpdateFields', i, {}) as Record<string, any>;
         const body: Record<string, any> = {};
 
@@ -4298,18 +4295,18 @@ export class ContentStudio implements INodeType {
         if (fields.approval_emails !== undefined && fields.approval_emails !== null && fields.approval_emails !== '') {
           const approvalEmails = parseCommaSeparated(fields.approval_emails);
           if (approvalEmails.length < 1 || approvalEmails.length > 10) {
-            throw new Error(`Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`);
+            throw new NodeOperationError(this.getNode(), `Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`, { itemIndex: i });
           }
           body.approval_emails = approvalEmails;
         }
         if (fields.social_selections !== undefined && fields.social_selections !== null && fields.social_selections !== '') {
-          const socialSelections = parseJsonObject(fields.social_selections, 'Social Selections');
+          const socialSelections = parseJsonObject(this.getNode(), fields.social_selections, 'Social Selections');
           if (Object.keys(socialSelections).length) body.social_selections = socialSelections;
         }
         if (body.is_password_protected === true && !body.password) {
-          throw new Error('Password is required when Password Protected is enabled');
+          throw new NodeOperationError(this.getNode(), 'Password is required when Password Protected is enabled', { itemIndex: i });
         }
-        if (Object.keys(body).length === 0) throw new Error('Add at least one field to Update Fields');
+        if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one field to Update Fields', { itemIndex: i });
 
         // `plans` and `filters` are create-only on the API and are not sent here.
         options.method = 'PUT';
@@ -4320,7 +4317,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'delete') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
-        if (!shareLinkId) throw new Error('Share Link ID is required');
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
         options.method = 'DELETE';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}`;
       }
@@ -4328,13 +4325,13 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'sendInvitations') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
-        if (!shareLinkId) throw new Error('Share Link ID is required');
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
         const approvalEmails = parseCommaSeparated(this.getNodeParameter('shareLinkApprovalEmails', i, '') as unknown);
         if (approvalEmails.length < 1 || approvalEmails.length > 10) {
-          throw new Error(`Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`);
+          throw new NodeOperationError(this.getNode(), `Approval Emails takes between 1 and 10 addresses (got ${approvalEmails.length})`, { itemIndex: i });
         }
         if (new Set(approvalEmails.map((email) => email.toLowerCase())).size !== approvalEmails.length) {
-          throw new Error('Approval Emails must not repeat an address');
+          throw new NodeOperationError(this.getNode(), 'Approval Emails must not repeat an address', { itemIndex: i });
         }
         const approvalOption = (this.getNodeParameter('shareLinkApprovalOption', i, 'anyone') as string) || 'anyone';
         options.method = 'POST';
@@ -4345,7 +4342,7 @@ export class ContentStudio implements INodeType {
       if (resource === 'shareLink' && operation === 'activity') {
         const workspaceId = this.getNodeParameter('workspaceId', i) as string;
         const shareLinkId = ((this.getNodeParameter('shareLinkId', i) as string) || '').trim();
-        if (!shareLinkId) throw new Error('Share Link ID is required');
+        if (!shareLinkId) throw new NodeOperationError(this.getNode(), 'Share Link ID is required', { itemIndex: i });
         const activityType = ((this.getNodeParameter('shareLinkActivityType', i, '') as string) || '').trim();
         options.method = 'GET';
         options.url = `${baseRoot}/v1/workspaces/${workspaceId}/share-links/${shareLinkId}/activity`;
@@ -4376,10 +4373,10 @@ export class ContentStudio implements INodeType {
           returnData.push({ json: { error: message }, pairedItem: { item: i } });
           continue;
         }
-        if (error instanceof NodeApiError) {
+        if (error instanceof NodeApiError || error instanceof NodeOperationError) {
           throw error;
         }
-        throw new NodeApiError(this.getNode(), error as any, { itemIndex: i });
+        throw new NodeApiError(this.getNode(), error as JsonObject, { itemIndex: i });
       }
     }
 

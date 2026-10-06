@@ -65,3 +65,64 @@ jobs:
 
       - run: npm publish --provenance --access public
         if: steps.registry.outputs.published == 'false'
+
+      - name: Generate release notes
+        id: changelog
+        if: steps.registry.outputs.published == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -n1 || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "$PREV_TAG"..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -30)
+          fi
+
+          FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature)(\(.*\))?:" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "^- fix(\(.*\))?:" || true)
+          OTHER=$(echo "$COMMITS" | grep -viE "^- (feat|feature|fix)(\(.*\))?:" || true)
+
+          {
+            echo "## What's Changed in ${TAG}"
+            echo ""
+
+            if [ -n "$FEATURES" ]; then
+              echo "### Features"
+              echo "$FEATURES"
+              echo ""
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### Bug Fixes"
+              echo "$FIXES"
+              echo ""
+            fi
+
+            if [ -n "$OTHER" ]; then
+              echo "### Other Changes"
+              echo "$OTHER"
+              echo ""
+            fi
+
+            echo "### npm"
+            echo "- \`npm install n8n-nodes-contentstudio@${VERSION}\`"
+            echo ""
+
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+            fi
+          } > changelog.md
+
+      - name: Create GitHub release
+        if: steps.registry.outputs.published == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "Release ${TAG}" \
+            --notes-file changelog.md \
+            --latest

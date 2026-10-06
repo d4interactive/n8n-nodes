@@ -1,8 +1,9 @@
+import type { INode } from 'n8n-workflow';
 export declare function normalizeBase(u: string): string;
 export declare function parseArray(val: unknown): any[];
 export declare function parseAccounts(val: unknown): any[];
-export declare function parseJsonObject(val: unknown, fieldLabel?: string): Record<string, any>;
-export declare function parseJsonArray(val: unknown, fieldLabel: string): any[];
+export declare function parseJsonObject(node: INode, val: unknown, fieldLabel?: string): Record<string, any>;
+export declare function parseJsonArray(node: INode, val: unknown, fieldLabel: string): any[];
 export declare function parseMaybeObject(val: string): any;
 export declare function parseCommaSeparated(val: unknown): string[];
 export declare const SCHEDULING_PLATFORMS: string[];
