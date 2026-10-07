@@ -238,6 +238,7 @@ export class ContentStudio implements INodeType {
           { name: 'AI Video', value: 'aiVideo' },
           { name: 'Approval Workflow', value: 'approvalWorkflow' },
           { name: 'Auth', value: 'auth' },
+          { name: 'Brand', value: 'brand' },
           { name: 'Campaign', value: 'campaign' },
           { name: 'Comment', value: 'comment' },
           { name: 'Content Category', value: 'contentCategory' },
@@ -360,6 +361,26 @@ export class ContentStudio implements INodeType {
           { name: 'Get Deliveries', value: 'getDeliveries', action: 'Get Webhook delivery logs' },
         ],
         default: 'list',
+      },
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['brand'] } },
+        options: [
+          { name: 'Get', value: 'get', action: 'Get the Brand' },
+          { name: 'Get Section', value: 'getSection', action: 'Get one Brand section' },
+          { name: 'Create', value: 'create', action: 'Create the Brand by AI analysis' },
+          { name: 'Update', value: 'update', action: 'Update the Brand' },
+          { name: 'Delete', value: 'delete', action: 'Delete the Brand' },
+          { name: 'Add Sources', value: 'addSources', action: 'Add Brand source materials' },
+          { name: 'Delete Source', value: 'deleteSource', action: 'Delete a Brand source material' },
+          { name: 'Sync', value: 'sync', action: 'Re-sync the Brand from its sources' },
+          { name: 'Get Post Generation Settings', value: 'getPostSettings', action: 'Get Brand post generation settings' },
+          { name: 'Update Post Generation Settings', value: 'updatePostSettings', action: 'Update Brand post generation settings' },
+        ],
+        default: 'get',
       },
       {
         displayName: 'Operation',
@@ -534,7 +555,7 @@ export class ContentStudio implements INodeType {
         description: 'Workspace ID',
         displayOptions: {
           show: {
-            resource: ['socialAccount', 'contentCategory', 'contentCategorySlot', 'label', 'campaign', 'limit', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'scheduling', 'aiVideo', 'aiImage', 'webhook'],
+            resource: ['socialAccount', 'contentCategory', 'contentCategorySlot', 'label', 'campaign', 'limit', 'media', 'teamMember', 'post', 'comment', 'approvalWorkflow', 'shareLink', 'scheduling', 'aiVideo', 'aiImage', 'webhook', 'brand'],
           },
         },
       },
@@ -1384,6 +1405,322 @@ export class ContentStudio implements INodeType {
             type: 'dateTime',
             default: '',
             description: 'Only deliveries at or before this time (ISO 8601)',
+          },
+        ],
+      },
+
+      // Brand fields. The brand is the workspace's Brand Knowledge used by AI
+      // generation; there is one brand per workspace, so no brand id is needed.
+      {
+        displayName: 'Section',
+        name: 'brandSection',
+        type: 'options',
+        options: [
+          { name: 'Style', value: 'style', description: 'Returns brand_style' },
+          { name: 'Profile', value: 'profile', description: 'Returns brand_profile' },
+          { name: 'Voice', value: 'voice', description: 'Returns brand_voice' },
+        ],
+        default: 'style',
+        description: 'The part of the brand to read. The response holds schema_version, is_set_up, brand_<section> and updated_at.',
+        displayOptions: { show: { resource: ['brand'], operation: ['getSection'] } },
+      },
+      {
+        displayName: 'Source ID',
+        name: 'brandSourceId',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'The id of the source material (from source_materials on the brand). Removes the source and the brand assets it produced; unknown ids answer 404 BRAND_SOURCE_NOT_FOUND. The response lists auto_reply_rules_affected.',
+        displayOptions: { show: { resource: ['brand'], operation: ['deleteSource'] } },
+      },
+      {
+        displayName: 'Website URL',
+        name: 'brandWebsiteUrl',
+        type: 'string',
+        default: '',
+        placeholder: 'https://example.com',
+        description: 'Website to scrape and analyse (website_url). At least one of Website URL, Text, Files or Social Accounts is required. Create and Add Sources run the AI analysis synchronously and can take up to ~2 minutes (per source for Add Sources).',
+        displayOptions: { show: { resource: ['brand'], operation: ['create', 'addSources'] } },
+      },
+      {
+        displayName: 'Text',
+        name: 'brandText',
+        type: 'string',
+        typeOptions: { rows: 4 },
+        default: '',
+        description: 'Brand information as free text (text, max 10000 characters)',
+        displayOptions: { show: { resource: ['brand'], operation: ['create', 'addSources'] } },
+      },
+      {
+        displayName: 'Files',
+        name: 'brandFiles',
+        type: 'fixedCollection',
+        typeOptions: { multipleValues: true },
+        placeholder: 'Add File',
+        default: {},
+        description: 'Documents to analyse (files, max 50): public https URLs of PDF, DOCX, TXT or Markdown files',
+        displayOptions: { show: { resource: ['brand'], operation: ['create', 'addSources'] } },
+        options: [
+          {
+            name: 'file',
+            displayName: 'File',
+            values: [
+              {
+                displayName: 'URL',
+                name: 'url',
+                type: 'string',
+                default: '',
+                placeholder: 'https://example.com/brand-guidelines.pdf',
+                description: 'Public https URL of a PDF, DOCX, TXT or Markdown document',
+              },
+              {
+                displayName: 'Name',
+                name: 'name',
+                type: 'string',
+                default: '',
+                description: 'Optional display name (max 255 characters); defaults to the file name',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        displayName: 'Social Account Names or IDs',
+        name: 'brandSocialAccounts',
+        type: 'multiOptions',
+        typeOptions: { loadOptionsMethod: 'getAccounts', loadOptionsDependsOn: ['workspaceId'] },
+        default: [],
+        description: 'Connected accounts whose recent posts are analysed (social_accounts — the id from Social Account → List). Supported platforms: Facebook, X (Twitter), Instagram, LinkedIn, Pinterest, Telegram, YouTube, TikTok, Tumblr, Google Business Profile, Bluesky. An id that is not a connected account of this workspace or is on another platform is a 422 VALIDATION_ERROR on social_accounts. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+        displayOptions: { show: { resource: ['brand'], operation: ['create', 'addSources'] } },
+      },
+      {
+        displayName: 'Brand Style',
+        name: 'brandStyle',
+        type: 'collection',
+        placeholder: 'Add Style Field',
+        default: {},
+        description: 'brand_style fields to change. Only the fields added here are sent; an empty text value clears the field.',
+        displayOptions: { show: { resource: ['brand'], operation: ['update'] } },
+        options: [
+          {
+            displayName: 'Body Font',
+            name: 'body_font',
+            type: 'string',
+            default: '',
+          },
+          {
+            displayName: 'Colors',
+            name: 'colors',
+            type: 'fixedCollection',
+            typeOptions: { multipleValues: true },
+            placeholder: 'Add Color',
+            default: {},
+            description: 'Replaces the brand colors (max 6; at most one each of brand, background and text)',
+            options: [
+              {
+                name: 'color',
+                displayName: 'Color',
+                values: [
+                  {
+                    displayName: 'Hex',
+                    name: 'hex',
+                    type: 'string',
+                    default: '',
+                    placeholder: '#1A73E8',
+                    description: 'Color in #RRGGBB form',
+                  },
+                  {
+                    displayName: 'Role',
+                    name: 'role',
+                    type: 'options',
+                    options: [
+                      { name: 'Accent', value: 'accent' },
+                      { name: 'Background', value: 'background' },
+                      { name: 'Brand', value: 'brand' },
+                      { name: 'Text', value: 'text' },
+                    ],
+                    default: 'brand',
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            displayName: 'Logo',
+            name: 'logo',
+            type: 'string',
+            default: '',
+            description: 'http(s) URL of the logo; leave empty to clear it. A ContentStudio storage URL is accepted only if it is the current logo or a file in this workspace\'s media library.',
+          },
+          {
+            displayName: 'Title Font',
+            name: 'title_font',
+            type: 'string',
+            default: '',
+          },
+          {
+            displayName: 'Visual Identity Description',
+            name: 'visual_identity_description',
+            type: 'string',
+            typeOptions: { rows: 3 },
+            default: '',
+          },
+        ],
+      },
+      {
+        displayName: 'Brand Profile',
+        name: 'brandProfile',
+        type: 'collection',
+        placeholder: 'Add Profile Field',
+        default: {},
+        description: 'brand_profile fields to change. Text fields max 10000 characters. List fields take comma-separated values or a JSON array (entries max 200 characters) and replace the stored list.',
+        displayOptions: { show: { resource: ['brand'], operation: ['update'] } },
+        options: [
+          { displayName: 'Business Name', name: 'business_name', type: 'string', default: '' },
+          { displayName: 'Competitive Advantages', name: 'competitive_advantages', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Competitors', name: 'competitors', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Core Identity', name: 'core_identity', type: 'string', typeOptions: { rows: 3 }, default: '' },
+          { displayName: 'Market Positioning', name: 'market_positioning', type: 'string', typeOptions: { rows: 3 }, default: '' },
+          { displayName: 'Primary Customer Segments', name: 'primary_customer_segments', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Primary Value Drivers', name: 'primary_value_drivers', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+        ],
+      },
+      {
+        displayName: 'Brand Voice',
+        name: 'brandVoice',
+        type: 'collection',
+        placeholder: 'Add Voice Field',
+        default: {},
+        description: 'brand_voice fields to change. Text fields max 10000 characters. List fields are free text, take comma-separated values or a JSON array (entries max 200 characters) and replace the stored list.',
+        displayOptions: { show: { resource: ['brand'], operation: ['update'] } },
+        options: [
+          { displayName: 'Audience', name: 'audience', type: 'string', typeOptions: { rows: 3 }, default: '' },
+          { displayName: 'Character', name: 'character', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Emotion', name: 'emotion', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Language', name: 'language', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Purpose', name: 'purpose', type: 'string', typeOptions: { rows: 3 }, default: '' },
+          { displayName: 'Tone', name: 'tone', type: 'string', default: '', description: 'Comma-separated or JSON array; replaces the list' },
+          { displayName: 'Voice Description', name: 'voice_description', type: 'string', typeOptions: { rows: 3 }, default: '' },
+        ],
+      },
+      {
+        displayName: 'Brand Enabled',
+        name: 'brandEnabled',
+        type: 'options',
+        options: [
+          { name: 'Leave Unchanged', value: 'unchanged' },
+          { name: 'Enabled', value: 'true' },
+          { name: 'Disabled', value: 'false' },
+        ],
+        default: 'unchanged',
+        description: 'Whether AI generation uses the brand (brand_enabled). Disabling pauses it without losing the brand.',
+        displayOptions: { show: { resource: ['brand'], operation: ['update'] } },
+      },
+      {
+        displayName: 'Settings',
+        name: 'brandPostSettings',
+        type: 'collection',
+        placeholder: 'Add Setting',
+        default: {},
+        description: 'Only the settings added here change. Nothing saves until a Social Platform is stored or sent (422 VALIDATION_ERROR on social_platform). Creates the brand if the workspace has none.',
+        displayOptions: { show: { resource: ['brand'], operation: ['updatePostSettings'] } },
+        options: [
+          {
+            displayName: 'Aspect Ratio',
+            name: 'aspect_ratio',
+            type: 'options',
+            options: ['8:1', '4:1', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16', '1:4', '1:8'].map((v) => ({ name: v, value: v })),
+            default: '1:1',
+          },
+          {
+            displayName: 'Caption Length',
+            name: 'caption_length',
+            type: 'number',
+            typeOptions: { minValue: 20, maxValue: 200 },
+            default: 40,
+          },
+          {
+            displayName: 'Emoji Usage',
+            name: 'emoji_usage',
+            type: 'options',
+            options: [
+              { name: 'None', value: 'none' },
+              { name: 'Low', value: 'low' },
+              { name: 'Medium', value: 'medium' },
+              { name: 'High', value: 'high' },
+            ],
+            default: 'medium',
+          },
+          {
+            displayName: 'Hashtag Usage',
+            name: 'hashtag_usage',
+            type: 'options',
+            options: [
+              { name: 'None', value: 'none' },
+              { name: 'Low', value: 'low' },
+              { name: 'Medium', value: 'medium' },
+              { name: 'High', value: 'high' },
+            ],
+            default: 'medium',
+          },
+          {
+            displayName: 'Image Style',
+            name: 'image_style',
+            type: 'options',
+            options: [
+              'none', 'abstract', 'oil-painting', 'neon-punk', 'app-icon', 'black-white', 'bokeh', 'cartoon', 'cinematic',
+              'cyberpunk', 'digital-watercolor', 'film-noir', 'film-poster', 'flat-design', 'futuristic', 'grunge',
+              'highly-detailed', 'isometric', 'minimalistic', 'photorealistic', 'pixel-art', 'polaroid', 'pop-art',
+              'retro-80s', 'steampunk', 'sticker', 'super-realistic', 'surrealism', 'tattoo', 'unreal-engine', 'vaporwave',
+            ].map((v) => ({ name: v, value: v })),
+            default: 'none',
+          },
+          {
+            displayName: 'Language',
+            name: 'language',
+            type: 'options',
+            options: [
+              'English', 'Spanish', 'French', 'Portuguese', 'German', 'Italian', 'Dutch', 'Turkish', 'Indonesian', 'Tagalog',
+              'Swedish', 'Danish', 'Norwegian', 'Romanian', 'Polish', 'Finnish', 'Hungarian', 'Greek', 'Czech', 'Malay',
+              'Vietnamese', 'Chinese (Simplified)', 'Chinese (Traditional)',
+            ].map((v) => ({ name: v, value: v })),
+            default: 'English',
+          },
+          {
+            displayName: 'Number of Posts',
+            name: 'no_of_posts',
+            type: 'number',
+            typeOptions: { minValue: 1, maxValue: 10 },
+            default: 10,
+          },
+          {
+            displayName: 'Post Type',
+            name: 'post_type',
+            type: 'options',
+            options: [
+              { name: 'Image', value: 'image' },
+              { name: 'Text', value: 'text' },
+              { name: 'Text + Image', value: 'text_image' },
+            ],
+            default: 'image',
+          },
+          {
+            displayName: 'Social Platform',
+            name: 'social_platform',
+            type: 'options',
+            options: [
+              { name: 'Bluesky', value: 'bluesky' },
+              { name: 'Facebook', value: 'facebook' },
+              { name: 'Google Business Profile', value: 'gmb' },
+              { name: 'Instagram', value: 'instagram' },
+              { name: 'LinkedIn', value: 'linkedin' },
+              { name: 'Telegram', value: 'telegram' },
+              { name: 'Threads', value: 'threads' },
+              { name: 'TikTok', value: 'tiktok' },
+              { name: 'Tumblr', value: 'tumblr' },
+              { name: 'X (Twitter)', value: 'twitter' },
+            ],
+            default: 'instagram',
           },
         ],
       },
@@ -4632,6 +4969,164 @@ export class ContentStudio implements INodeType {
           options.method = 'GET';
           options.url = `${webhooksBase}/${webhookId}/deliveries`;
           options.qs = qs;
+        }
+      }
+
+      if (resource === 'brand') {
+        const workspaceId = this.getNodeParameter('workspaceId', i) as string;
+        const brandBase = `${baseRoot}/v1/workspaces/${workspaceId}/brand`;
+
+        // Create and Add Sources share one body: website_url, text, files[], social_accounts[]
+        const buildBrandSources = (): Record<string, any> => {
+          const sources: Record<string, any> = {};
+          const websiteUrl = ((this.getNodeParameter('brandWebsiteUrl', i, '') as string) || '').trim();
+          if (websiteUrl) sources.website_url = websiteUrl;
+          const text = ((this.getNodeParameter('brandText', i, '') as string) || '').trim();
+          if (text) sources.text = text;
+          const filesParam = this.getNodeParameter('brandFiles', i, {}) as Record<string, any>;
+          const files = (Array.isArray(filesParam?.file) ? filesParam.file : [])
+            .map((f: any) => {
+              const url = String(f?.url ?? '').trim();
+              if (!url) return null;
+              const name = String(f?.name ?? '').trim();
+              return name ? { url, name } : { url };
+            })
+            .filter(Boolean);
+          if (files.length) sources.files = files;
+          const socialAccounts = parseCommaSeparated(this.getNodeParameter('brandSocialAccounts', i, []));
+          if (socialAccounts.length) sources.social_accounts = socialAccounts;
+          if (Object.keys(sources).length === 0) {
+            throw new NodeOperationError(this.getNode(), 'Provide at least one source: Website URL, Text, Files or Social Accounts', { itemIndex: i });
+          }
+          return sources;
+        };
+
+        if (operation === 'get') {
+          options.method = 'GET';
+          options.url = brandBase;
+        }
+
+        if (operation === 'getSection') {
+          const section = this.getNodeParameter('brandSection', i) as string;
+          options.method = 'GET';
+          options.url = `${brandBase}/${section}`;
+        }
+
+        if (operation === 'create') {
+          options.method = 'POST';
+          options.url = brandBase;
+          options.body = buildBrandSources();
+          options.timeout = 180000;
+        }
+
+        if (operation === 'update') {
+          const textOrNull = (value: unknown) => (typeof value === 'string' ? value.trim() : value);
+          const body: Record<string, any> = {};
+
+          const style = this.getNodeParameter('brandStyle', i, {}) as Record<string, any>;
+          const brandStyle: Record<string, any> = {};
+          for (const key of ['logo', 'title_font', 'body_font', 'visual_identity_description'] as const) {
+            if (key in style) brandStyle[key] = textOrNull(style[key]);
+          }
+          if ('colors' in style) {
+            const colors = Array.isArray(style.colors?.color) ? style.colors.color : [];
+            brandStyle.colors = colors
+              .map((c: any) => ({ hex: String(c?.hex ?? '').trim(), role: c?.role }))
+              .filter((c: any) => c.hex);
+          }
+          if (Object.keys(brandStyle).length) body.brand_style = brandStyle;
+
+          const collectSection = (
+            param: string,
+            textKeys: readonly string[],
+            listKeys: readonly string[],
+          ): Record<string, any> => {
+            const values = this.getNodeParameter(param, i, {}) as Record<string, any>;
+            const section: Record<string, any> = {};
+            for (const key of textKeys) {
+              if (key in values) section[key] = textOrNull(values[key]);
+            }
+            for (const key of listKeys) {
+              if (key in values) section[key] = parseCommaSeparated(values[key]);
+            }
+            return section;
+          };
+
+          const brandProfile = collectSection(
+            'brandProfile',
+            ['business_name', 'core_identity', 'market_positioning'],
+            ['competitors', 'competitive_advantages', 'primary_customer_segments', 'primary_value_drivers'],
+          );
+          if (Object.keys(brandProfile).length) body.brand_profile = brandProfile;
+
+          const brandVoice = collectSection(
+            'brandVoice',
+            ['purpose', 'audience', 'voice_description'],
+            ['tone', 'emotion', 'character', 'language'],
+          );
+          if (Object.keys(brandVoice).length) body.brand_voice = brandVoice;
+
+          const enabled = this.getNodeParameter('brandEnabled', i, 'unchanged') as string;
+          if (enabled === 'true' || enabled === 'false') body.brand_enabled = enabled === 'true';
+
+          if (Object.keys(body).length === 0) {
+            throw new NodeOperationError(this.getNode(), 'Add at least one Brand Style, Brand Profile or Brand Voice field, or set Brand Enabled', { itemIndex: i });
+          }
+          options.method = 'PATCH';
+          options.url = brandBase;
+          options.body = body;
+        }
+
+        if (operation === 'delete') {
+          options.method = 'DELETE';
+          options.url = brandBase;
+        }
+
+        if (operation === 'addSources') {
+          const sources = buildBrandSources();
+          const sourceCount = (sources.website_url ? 1 : 0)
+            + (sources.text ? 1 : 0)
+            + (Array.isArray(sources.files) ? sources.files.length : 0)
+            + (sources.social_accounts ? 1 : 0);
+          options.method = 'POST';
+          options.url = `${brandBase}/sources`;
+          options.body = sources;
+          // Each source is analysed in turn and can take up to ~2 minutes
+          options.timeout = Math.max(180000, sourceCount * 120000 + 60000);
+        }
+
+        if (operation === 'deleteSource') {
+          const sourceId = ((this.getNodeParameter('brandSourceId', i) as string) || '').trim();
+          if (!sourceId) throw new NodeOperationError(this.getNode(), 'Source ID is required', { itemIndex: i });
+          options.method = 'DELETE';
+          options.url = `${brandBase}/sources/${encodeURIComponent(sourceId)}`;
+        }
+
+        if (operation === 'sync') {
+          options.method = 'POST';
+          options.url = `${brandBase}/sync`;
+          options.body = {};
+          options.timeout = 180000;
+        }
+
+        if (operation === 'getPostSettings') {
+          options.method = 'GET';
+          options.url = `${brandBase}/post-generation-settings`;
+        }
+
+        if (operation === 'updatePostSettings') {
+          const settings = this.getNodeParameter('brandPostSettings', i, {}) as Record<string, any>;
+          const body: Record<string, any> = {};
+          for (const key of ['social_platform', 'language', 'post_type', 'emoji_usage', 'hashtag_usage', 'aspect_ratio', 'image_style'] as const) {
+            if (typeof settings[key] === 'string' && settings[key]) body[key] = settings[key];
+          }
+          for (const key of ['no_of_posts', 'caption_length'] as const) {
+            if (settings[key] !== undefined && settings[key] !== null && settings[key] !== '') body[key] = Number(settings[key]);
+          }
+          if (Object.keys(body).length === 0) throw new NodeOperationError(this.getNode(), 'Add at least one setting', { itemIndex: i });
+          options.method = 'PATCH';
+          options.url = `${brandBase}/post-generation-settings`;
+          options.body = body;
         }
       }
 
