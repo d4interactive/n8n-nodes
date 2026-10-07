@@ -392,3 +392,29 @@ export async function getTeamMembers(this: ILoadOptionsFunctions): Promise<INode
     throw loadOptionsError(this, error, 'Team Members');
   }
 }
+
+export async function getWebhookEventTypes(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  try {
+    const baseRoot = normalizeBase(BASE_URL);
+    const workspaceId = (this.getCurrentNodeParameter('workspaceId') as string) || '';
+    if (!workspaceId) return [];
+    const body: any = await apiRequest(this, {
+      method: 'GET',
+      url: `${baseRoot}/v1/workspaces/${workspaceId}/webhooks/event-types`,
+    });
+    const list: any[] = extractListFromBody(body);
+    return list
+      .map((t: any) => {
+        const value = t?.value;
+        if (!value) return null;
+        return {
+          name: t?.label ? `${t.label} (${value})` : String(value),
+          value: String(value),
+          description: t?.description || undefined,
+        } as INodePropertyOptions;
+      })
+      .filter((o): o is INodePropertyOptions => !!o);
+  } catch (error) {
+    throw loadOptionsError(this, error, 'Webhook Event Types');
+  }
+}

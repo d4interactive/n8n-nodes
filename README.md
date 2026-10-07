@@ -46,6 +46,8 @@ The API base URL is built into the node, so users only need to provide their API
 - **Content Category Slot**: List, create, update, delete slots, and look up the next slot
 - **Approval Workflow**: List, get, create, update, delete, duplicate, set/remove default, and poll cascade jobs
 - **Share Link**: List, get, create, update, delete share links, send approval invitations, and read activity
+- **Brand**: Get the workspace's Brand Knowledge (or one section: style, profile, voice); create it by AI analysis of a website, text, documents and social accounts; update style/profile/voice fields and brand_enabled; delete it; add, delete and re-sync source materials; and get/update the AI post generation settings. Create, Add Sources and Sync are synchronous AI analyses that can take ~2 minutes
+- **Webhook**: List event types; list, get, create, update, delete webhooks; rotate the signing secret; and read delivery logs (webhooks belong to the API key's user — the workspace only selects whose API credits are used)
 - **Limit**: Get plan limits and current usage for a workspace
 
 ### Post Operations
